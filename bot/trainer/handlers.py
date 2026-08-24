@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -20,6 +20,7 @@ from .views import (
     format_number,
     groups_keyboard,
     history_keyboard,
+    history_detail_keyboard,
     input_keyboard,
     sets_keyboard,
     trainer_main_menu,
@@ -72,11 +73,12 @@ class TrainerHandlers:
         await self._send_groups(app, context, update.effective_chat.id)
 
     async def command_history(self, app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        text, days = self._history_overview(update.effective_user.id)
         await app.send_active(
             context,
             update.effective_chat.id,
-            self._history_text(update.effective_user.id),
-            reply_markup=history_keyboard(),
+            text,
+            reply_markup=history_keyboard(days),
         )
 
     async def command_export(self, app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -129,7 +131,22 @@ class TrainerHandlers:
             return True
 
         if data == "trainer:history":
-            await query.edit_message_text(self._history_text(user_id), reply_markup=history_keyboard())
+            text, days = self._history_overview(user_id)
+            await query.edit_message_text(text, reply_markup=history_keyboard(days))
+            return True
+
+        if data.startswith("trainer:history:"):
+            selected_day = data.rsplit(":", 1)[1]
+            try:
+                date.fromisoformat(selected_day)
+            except ValueError:
+                text, days = self._history_overview(user_id)
+                await query.edit_message_text(text, reply_markup=history_keyboard(days))
+                return True
+            await query.edit_message_text(
+                self._history_day_text(user_id, selected_day),
+                reply_markup=history_detail_keyboard(),
+            )
             return True
 
         if data == "trainer:export":
@@ -428,13 +445,33 @@ class TrainerHandlers:
             reply_markup=after_save_keyboard(group.id),
         )
 
-    def _history_text(self, user_id: int) -> str:
-        workouts = self.database.get_recent_workouts(user_id)
+    def _history_overview(self, user_id: int) -> tuple[str, list[tuple[str, str]]]:
+        workouts = self.database.get_recent_workouts(user_id, limit=50)
         if not workouts:
-            return "История тренировок пока пуста."
-        lines = ["📋 Последние тренировки"]
+            return "История тренировок пока пуста.", []
+        days: list[tuple[str, str]] = []
+        seen: set[str] = set()
         for workout in workouts:
             completed = datetime.fromisoformat(workout.completed_at).astimezone(self.timezone)
+            key = completed.date().isoformat()
+            if key in seen:
+                continue
+            seen.add(key)
+            days.append((key, f"🏋️ {completed:%d.%m.%Y}"))
+            if len(days) == 5:
+                break
+        return "📋 Последние тренировки\n\nВыберите дату:", days
+
+    def _history_day_text(self, user_id: int, selected_day: str) -> str:
+        workouts = self.database.get_recent_workouts(user_id, limit=50)
+        selected = date.fromisoformat(selected_day)
+        lines = [f"🏋️ Тренировка {selected:%d.%m.%Y}"]
+        found = False
+        for workout in reversed(workouts):
+            completed = datetime.fromisoformat(workout.completed_at).astimezone(self.timezone)
+            if completed.date() != selected:
+                continue
+            found = True
             if workout.activity_type == "distance":
                 details = f"{format_number(float(workout.distance_km or 0))} км"
             else:
@@ -442,7 +479,11 @@ class TrainerHandlers:
                     f"{rep}×{format_number(weight)} кг"
                     for rep, weight in zip(workout.reps, workout.weights, strict=True)
                 )
-            lines.append(f"\n{completed:%d.%m.%Y %H:%M} · {workout.group_name}\n{workout.exercise_name}: {details}")
+            resolved = self.catalog.get_exercise(workout.exercise_id)
+            exercise_name = resolved[1].name if resolved is not None else workout.exercise_name
+            lines.append(f"\n{completed:%H:%M} · {workout.group_name}\n{exercise_name}: {details}")
+        if not found:
+            return f"Тренировка за {selected:%d.%m.%Y} не найдена."
         return "\n".join(lines)
 
     async def _send_export(self, app: "BotApp", context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> None:

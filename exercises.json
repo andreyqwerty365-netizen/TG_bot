@@ -6,13 +6,13 @@
       "exercises": [
         {
           "id": "lat_pulldown",
-          "name": "Тяга верхнего блока широким хватом",
+          "name": "Верхний хват",
           "image": "assets/exercises/lat_pulldown.jpg",
           "weight_steps": [5]
         },
         {
           "id": "seated_cable_row",
-          "name": "Горизонтальная тяга блока",
+          "name": "Нижний хват",
           "image": "assets/exercises/seated_cable_row.jpg",
           "weight_steps": [5]
         }
@@ -31,6 +31,11 @@
           "id": "leg_press",
           "name": "Жим ногами",
           "weight_steps": [5, 10, 20]
+        },
+        {
+          "id": "calf_raise",
+          "name": "Икры",
+          "weight_steps": [5]
         }
       ]
     },
@@ -40,19 +45,19 @@
       "exercises": [
         {
           "id": "ez_bar_curl",
-          "name": "Сгибание рук с EZ-штангой стоя",
+          "name": "Поднятие грифа",
           "image": "assets/exercises/ez_bar_curl.jpg",
           "weight_steps": [2.5, 5]
         },
         {
           "id": "alternating_dumbbell_curl",
-          "name": "Попеременный подъём гантелей на бицепс",
+          "name": "Hammer",
           "image": "assets/exercises/alternating_dumbbell_curl.jpg",
           "weight_steps": [2, 4]
         },
         {
           "id": "triceps_pushdown",
-          "name": "Разгибание рук на верхнем блоке",
+          "name": "Трицепс",
           "image": "assets/exercises/triceps_pushdown.jpg",
           "weight_steps": [5]
         }
@@ -70,7 +75,7 @@
         },
         {
           "id": "pec_deck",
-          "name": "Сведение рук в тренажёре («бабочка»)",
+          "name": "Бабочка",
           "image": "assets/exercises/pec_deck.jpg",
           "weight_steps": [5]
         }

@@ -36,6 +36,30 @@ def test_catalog_supports_strength_and_distance_exercises() -> None:
     assert bench[1].image_path.is_file()
 
 
+def test_catalog_uses_short_exercise_names_and_includes_calves() -> None:
+    catalog_module = load_trainer_module("catalog")
+    catalog = catalog_module.ExerciseCatalog(PROJECT_DIR / "exercises.json")
+
+    expected_names = {
+        "lat_pulldown": "Верхний хват",
+        "seated_cable_row": "Нижний хват",
+        "calf_raise": "Икры",
+        "ez_bar_curl": "Поднятие грифа",
+        "alternating_dumbbell_curl": "Hammer",
+        "triceps_pushdown": "Трицепс",
+        "pec_deck": "Бабочка",
+    }
+
+    for exercise_id, expected_name in expected_names.items():
+        resolved = catalog.get_exercise(exercise_id)
+        assert resolved is not None
+        assert resolved[1].name == expected_name
+
+    calves = catalog.get_exercise("calf_raise")
+    assert calves is not None
+    assert calves[0].id == "legs"
+
+
 def test_catalog_rejects_duplicate_exercise_ids(tmp_path: Path) -> None:
     catalog_module = load_trainer_module("catalog")
     path = tmp_path / "exercises.json"
@@ -132,4 +156,3 @@ def test_strength_cardio_history_and_excel_export(tmp_path: Path) -> None:
     assert workbook.sheetnames == ["Подходы", "Тренировки", "Кардио", "Базовые веса"]
     assert workbook["Подходы"].max_row == 4
     assert workbook["Кардио"]["E2"].value == 2.4
-

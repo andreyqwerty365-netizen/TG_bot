@@ -26,6 +26,7 @@ class ExerciseProfile:
 class WorkoutSummary:
     completed_at: str
     group_name: str
+    exercise_id: str
     exercise_name: str
     activity_type: str
     sets_count: int
@@ -292,7 +293,7 @@ class TrainerDatabase:
         with self._lock, self._connection() as connection:
             workout_rows = connection.execute(
                 """
-                SELECT id, completed_at, group_name, exercise_name, activity_type,
+                SELECT id, completed_at, group_name, exercise_id, exercise_name, activity_type,
                        sets_count, distance_km
                 FROM workouts
                 WHERE telegram_user_id = ?
@@ -317,6 +318,7 @@ class TrainerDatabase:
                     WorkoutSummary(
                         completed_at=workout["completed_at"],
                         group_name=workout["group_name"],
+                        exercise_id=workout["exercise_id"],
                         exercise_name=workout["exercise_name"],
                         activity_type=workout["activity_type"],
                         sets_count=int(workout["sets_count"]),

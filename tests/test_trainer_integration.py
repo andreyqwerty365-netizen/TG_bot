@@ -264,6 +264,86 @@ async def test_new_workout_reuses_last_weights_and_extends_last_known_weight(tmp
     assert state.payload["weights"] == [15.0, 15.0, 15.0]
 
 
+@pytest.mark.anyio
+async def test_history_shows_only_five_latest_training_days(tmp_path: Path, monkeypatch) -> None:
+    app, context = build_runtime(tmp_path)
+    timestamps = iter(
+        [
+            "2026-08-24T10:00:00+00:00",
+            "2026-08-23T10:00:00+00:00",
+            "2026-08-22T10:00:00+00:00",
+            "2026-08-21T10:00:00+00:00",
+            "2026-08-20T10:00:00+00:00",
+            "2026-08-19T10:00:00+00:00",
+        ]
+    )
+    monkeypatch.setattr("bot.trainer.database.utc_now_iso", lambda: next(timestamps))
+    for _ in range(6):
+        app.trainer_database.save_workout(
+            telegram_user_id=1,
+            username="tester",
+            full_name="Test User",
+            group_id="legs",
+            group_name="Ноги",
+            exercise_id="squat",
+            exercise_name="Приседания со штангой",
+            reps=(12,),
+            weights=(40,),
+            base_weight=40,
+        )
+
+    query = await press(app, context, "trainer:history")
+
+    text = query.edit_message_text.await_args.args[0]
+    markup = query.edit_message_text.await_args.kwargs["reply_markup"]
+    callbacks = callback_values(markup)
+    assert "Последние тренировки" in text
+    assert {f"trainer:history:{date}" for date in (
+        "2026-08-24", "2026-08-23", "2026-08-22", "2026-08-21", "2026-08-20"
+    )} <= callbacks
+    assert "trainer:history:2026-08-19" not in callbacks
+
+
+@pytest.mark.anyio
+async def test_history_day_opens_all_exercises_for_selected_date(tmp_path: Path, monkeypatch) -> None:
+    app, context = build_runtime(tmp_path)
+    timestamps = iter(
+        [
+            "2026-08-24T09:00:00+00:00",
+            "2026-08-24T10:00:00+00:00",
+            "2026-08-23T10:00:00+00:00",
+        ]
+    )
+    monkeypatch.setattr("bot.trainer.database.utc_now_iso", lambda: next(timestamps))
+    exercises = [
+        ("back", "Спина", "lat_pulldown", "Тяга верхнего блока широким хватом"),
+        ("legs", "Ноги", "leg_press", "Жим ногами"),
+        ("chest", "Грудь", "bench_press", "Жим лёжа"),
+    ]
+    for group_id, group_name, exercise_id, exercise_name in exercises:
+        app.trainer_database.save_workout(
+            telegram_user_id=1,
+            username="tester",
+            full_name="Test User",
+            group_id=group_id,
+            group_name=group_name,
+            exercise_id=exercise_id,
+            exercise_name=exercise_name,
+            reps=(12,),
+            weights=(40,),
+            base_weight=40,
+        )
+
+    query = await press(app, context, "trainer:history:2026-08-24")
+
+    text = query.edit_message_text.await_args.args[0]
+    assert "Верхний хват" in text
+    assert "Тяга верхнего блока широким хватом" not in text
+    assert "Жим ногами" in text
+    assert "Жим лёжа" not in text
+    assert "12×40 кг" in text
+
+
 def test_application_uses_workout_database_next_to_notes_by_default(tmp_path: Path) -> None:
     app, _ = build_runtime(tmp_path)
 

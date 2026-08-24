@@ -99,10 +99,24 @@ def after_save_keyboard(group_id: str) -> InlineKeyboardMarkup:
     )
 
 
-def history_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
+def history_keyboard(days: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(label, callback_data=f"trainer:history:{day}")]
+        for day, label in days
+    ]
+    rows.extend(
         [
             [InlineKeyboardButton("📊 Выгрузить Excel", callback_data="trainer:export")],
             [InlineKeyboardButton("⬅️ Меню тренера", callback_data="trainer:main")],
+        ]
+    )
+    return InlineKeyboardMarkup(rows)
+
+
+def history_detail_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("⬅️ К тренировкам", callback_data="trainer:history")],
+            [InlineKeyboardButton("🏠 Меню тренера", callback_data="trainer:main")],
         ]
     )
