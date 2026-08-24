@@ -65,16 +65,24 @@ async def test_base_workout_contains_only_regular_exercises_in_free_order(tmp_pa
     query = await press(app, context, "trainer:base")
 
     labels = callback_labels(query.edit_message_text.await_args.kwargs["reply_markup"])
-    expected_ids = {
+    expected_ids = [
         "lat_pulldown",
+        "pec_deck",
         "seated_cable_row",
+        "triceps_pushdown",
         "ez_bar_curl",
         "alternating_dumbbell_curl",
-        "triceps_pushdown",
-        "pec_deck",
         "treadmill_walking",
-    }
-    assert {f"trainer:base:exercise:{exercise_id}" for exercise_id in expected_ids} <= labels.keys()
+    ]
+    exercise_callbacks = [
+        button.callback_data
+        for row in query.edit_message_text.await_args.kwargs["reply_markup"].inline_keyboard
+        for button in row
+        if button.callback_data and button.callback_data.startswith("trainer:base:exercise:")
+    ]
+    assert exercise_callbacks == [
+        f"trainer:base:exercise:{exercise_id}" for exercise_id in expected_ids
+    ]
     assert not {
         "trainer:base:exercise:squat",
         "trainer:base:exercise:leg_press",

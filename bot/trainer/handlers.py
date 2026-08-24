@@ -37,11 +37,11 @@ logger = logging.getLogger(__name__)
 REPS_BY_SET = (12, 10, 8)
 BASE_WORKOUT_IDS = (
     "lat_pulldown",
+    "pec_deck",
     "seated_cable_row",
+    "triceps_pushdown",
     "ez_bar_curl",
     "alternating_dumbbell_curl",
-    "triceps_pushdown",
-    "pec_deck",
     "treadmill_walking",
 )
 
