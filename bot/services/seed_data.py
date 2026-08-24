@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import os
 import sqlite3
 import tempfile
@@ -22,6 +23,8 @@ def restore_seed_databases(payloads: Mapping[Path, str], marker: Path) -> list[P
         for target, encoded in pending:
             target.parent.mkdir(parents=True, exist_ok=True)
             raw = base64.b64decode(encoded, validate=True)
+            if raw.startswith(b"\x1f\x8b"):
+                raw = gzip.decompress(raw)
             with tempfile.NamedTemporaryFile(prefix=f".{target.name}.", suffix=".seed", dir=target.parent, delete=False) as handle:
                 handle.write(raw)
                 temp_path = Path(handle.name)
