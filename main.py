@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from bot.application import create_application
 from bot.config import Settings
+from bot.services.seed_data import restore_seed_databases
 
 
 TELEGRAM_TOKEN_RE = re.compile(r"\b\d{6,}:[A-Za-z0-9_-]{20,}\b")
@@ -39,6 +41,13 @@ def _rotating_handler(path: Path, settings: Settings, redaction_filter: logging.
 
 def main() -> None:
     settings = Settings.from_env()
+    restore_seed_databases(
+        {
+            settings.db_path: os.getenv("BOT_SEED_NOTES_B64", ""),
+            settings.trainer_db_path: os.getenv("BOT_SEED_WORKOUTS_B64", ""),
+        },
+        settings.db_path.parent / ".initial-seed-v1",
+    )
     settings.log_path.parent.mkdir(parents=True, exist_ok=True)
     settings.interaction_log_path.parent.mkdir(parents=True, exist_ok=True)
     redaction_filter = SecretRedactionFilter(settings.bot_token)
