@@ -1,0 +1,5 @@
+# Daily encrypted off-server backup at 03:15.
+15 3 * * * /opt/telegram-assistant/deploy/backup_to_s3.sh
+
+# Notify the owner only when the container state changes.
+*/5 * * * * /opt/telegram-assistant/deploy/check_bot_health.sh

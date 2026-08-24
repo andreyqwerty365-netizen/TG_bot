@@ -1,0 +1,6 @@
+python-telegram-bot[job-queue]>=21.10,<22
+python-dotenv>=1.0,<2
+openpyxl>=3.1,<4
+tzdata>=2026.1
+pyinstaller>=6.11,<7
+pytest>=8.3,<9

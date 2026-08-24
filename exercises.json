@@ -1,0 +1,91 @@
+{
+  "groups": [
+    {
+      "id": "back",
+      "name": "Спина",
+      "exercises": [
+        {
+          "id": "lat_pulldown",
+          "name": "Тяга верхнего блока широким хватом",
+          "image": "assets/exercises/lat_pulldown.jpg",
+          "weight_steps": [5]
+        },
+        {
+          "id": "seated_cable_row",
+          "name": "Горизонтальная тяга блока",
+          "image": "assets/exercises/seated_cable_row.jpg",
+          "weight_steps": [5]
+        }
+      ]
+    },
+    {
+      "id": "legs",
+      "name": "Ноги",
+      "exercises": [
+        {
+          "id": "squat",
+          "name": "Приседания со штангой",
+          "weight_steps": [2.5, 5, 10]
+        },
+        {
+          "id": "leg_press",
+          "name": "Жим ногами",
+          "weight_steps": [5, 10, 20]
+        }
+      ]
+    },
+    {
+      "id": "arms",
+      "name": "Руки",
+      "exercises": [
+        {
+          "id": "ez_bar_curl",
+          "name": "Сгибание рук с EZ-штангой стоя",
+          "image": "assets/exercises/ez_bar_curl.jpg",
+          "weight_steps": [2.5, 5]
+        },
+        {
+          "id": "alternating_dumbbell_curl",
+          "name": "Попеременный подъём гантелей на бицепс",
+          "image": "assets/exercises/alternating_dumbbell_curl.jpg",
+          "weight_steps": [2, 4]
+        },
+        {
+          "id": "triceps_pushdown",
+          "name": "Разгибание рук на верхнем блоке",
+          "image": "assets/exercises/triceps_pushdown.jpg",
+          "weight_steps": [5]
+        }
+      ]
+    },
+    {
+      "id": "chest",
+      "name": "Грудь",
+      "exercises": [
+        {
+          "id": "bench_press",
+          "name": "Жим лёжа",
+          "image": "assets/exercises/bench_press.jpg",
+          "weight_steps": [2.5, 5, 10]
+        },
+        {
+          "id": "pec_deck",
+          "name": "Сведение рук в тренажёре («бабочка»)",
+          "image": "assets/exercises/pec_deck.jpg",
+          "weight_steps": [5]
+        }
+      ]
+    },
+    {
+      "id": "cardio",
+      "name": "Кардио",
+      "exercises": [
+        {
+          "id": "treadmill_walking",
+          "name": "Ходьба на дорожке",
+          "type": "distance"
+        }
+      ]
+    }
+  ]
+}

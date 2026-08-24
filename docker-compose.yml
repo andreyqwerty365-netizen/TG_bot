@@ -1,0 +1,23 @@
+services:
+  bot:
+    container_name: telegram-assistant-bot
+    build: .
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    env_file:
+      - .env.vps
+    environment:
+      BOT_DB_PATH: /data/notes.db
+      BOT_LOG_PATH: /data/logs/bot.log
+      BOT_INTERACTION_LOG_PATH: /data/logs/interactions.log
+      BOT_TRAINER_DB_PATH: /data/workouts.sqlite3
+      BOT_EXERCISES_PATH: /app/exercises.json
+    volumes:
+      - ./data:/data
