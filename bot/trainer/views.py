@@ -12,7 +12,8 @@ def format_number(value: float) -> str:
 def trainer_main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🏋️ Новая тренировка", callback_data="trainer:workout")],
+            [InlineKeyboardButton("🏋️ Базовая тренировка", callback_data="trainer:base")],
+            [InlineKeyboardButton("➕ Другое упражнение", callback_data="trainer:workout")],
             [
                 InlineKeyboardButton("📋 История", callback_data="trainer:history"),
                 InlineKeyboardButton("📊 Excel", callback_data="trainer:export"),
@@ -22,18 +23,51 @@ def trainer_main_menu() -> InlineKeyboardMarkup:
     )
 
 
-def groups_keyboard(groups: tuple[ExerciseGroup, ...]) -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(group.name, callback_data=f"trainer:group:{group.id}")] for group in groups]
-    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="trainer:main")])
+def base_workout_keyboard(
+    exercises: tuple[Exercise, ...], completed_ids: set[str]
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                ("✅ " if exercise.id in completed_ids else "") + exercise.name,
+                callback_data=f"trainer:base:exercise:{exercise.id}",
+            )
+        ]
+        for exercise in exercises
+    ]
+    rows.extend(
+        [
+            [InlineKeyboardButton("➕ Добавить упражнение", callback_data="trainer:base:add")],
+            [InlineKeyboardButton("🏁 Завершить тренировку", callback_data="trainer:base:finish")],
+            [InlineKeyboardButton("⬅️ Меню тренера", callback_data="trainer:main")],
+        ]
+    )
     return InlineKeyboardMarkup(rows)
 
 
-def exercises_keyboard(group: ExerciseGroup) -> InlineKeyboardMarkup:
+def groups_keyboard(
+    groups: tuple[ExerciseGroup, ...],
+    callback_prefix: str = "trainer:group",
+    back_callback: str = "trainer:main",
+) -> InlineKeyboardMarkup:
     rows = [
-        [InlineKeyboardButton(exercise.name, callback_data=f"trainer:exercise:{exercise.id}")]
+        [InlineKeyboardButton(group.name, callback_data=f"{callback_prefix}:{group.id}")]
+        for group in groups
+    ]
+    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data=back_callback)])
+    return InlineKeyboardMarkup(rows)
+
+
+def exercises_keyboard(
+    group: ExerciseGroup,
+    callback_prefix: str = "trainer:exercise",
+    back_callback: str = "trainer:workout",
+) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(exercise.name, callback_data=f"{callback_prefix}:{exercise.id}")]
         for exercise in group.exercises
     ]
-    rows.append([InlineKeyboardButton("⬅️ К группам", callback_data="trainer:workout")])
+    rows.append([InlineKeyboardButton("⬅️ К группам", callback_data=back_callback)])
     return InlineKeyboardMarkup(rows)
 
 

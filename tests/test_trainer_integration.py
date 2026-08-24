@@ -33,6 +33,15 @@ def callback_values(markup) -> set[str]:
     }
 
 
+def callback_labels(markup) -> dict[str, str]:
+    return {
+        button.callback_data: button.text
+        for row in markup.inline_keyboard
+        for button in row
+        if button.callback_data is not None
+    }
+
+
 def test_secretary_main_menu_opens_trainer_as_separate_section() -> None:
     assert "menu:trainer" in callback_values(main_menu())
 
@@ -41,11 +50,83 @@ def test_trainer_keyboards_use_namespaced_callbacks() -> None:
     views = load_trainer_module("views")
     callbacks = callback_values(views.trainer_main_menu())
 
+    assert "trainer:base" in callbacks
     assert "trainer:workout" in callbacks
     assert "trainer:history" in callbacks
     assert "trainer:export" in callbacks
     assert "menu:main" in callbacks
     assert all(value == "menu:main" or value.startswith("trainer:") for value in callbacks)
+
+
+@pytest.mark.anyio
+async def test_base_workout_contains_only_regular_exercises_in_free_order(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+
+    query = await press(app, context, "trainer:base")
+
+    labels = callback_labels(query.edit_message_text.await_args.kwargs["reply_markup"])
+    expected_ids = {
+        "lat_pulldown",
+        "seated_cable_row",
+        "ez_bar_curl",
+        "alternating_dumbbell_curl",
+        "triceps_pushdown",
+        "pec_deck",
+        "treadmill_walking",
+    }
+    assert {f"trainer:base:exercise:{exercise_id}" for exercise_id in expected_ids} <= labels.keys()
+    assert not {
+        "trainer:base:exercise:squat",
+        "trainer:base:exercise:leg_press",
+        "trainer:base:exercise:calf_raise",
+        "trainer:base:exercise:bench_press",
+    } & labels.keys()
+    assert "trainer:base:add" in labels
+    assert "trainer:base:finish" in labels
+
+
+@pytest.mark.anyio
+async def test_saved_base_exercise_returns_to_checklist_and_marks_it_complete(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+
+    await press(app, context, "trainer:base")
+    await press(app, context, "trainer:base:exercise:alternating_dumbbell_curl")
+    await press(app, context, "trainer:sets:1")
+    update = SimpleNamespace(
+        effective_chat=SimpleNamespace(id=1),
+        effective_user=SimpleNamespace(id=1, username="tester", full_name="Test User"),
+        message=SimpleNamespace(text="10"),
+    )
+    await on_text(app, update, context)
+    query = await press(app, context, "trainer:save")
+
+    labels = callback_labels(query.edit_message_text.await_args.kwargs["reply_markup"])
+    assert "Базовая тренировка" in query.edit_message_text.await_args.args[0]
+    assert labels["trainer:base:exercise:alternating_dumbbell_curl"].startswith("✅")
+    assert app.get_chat_state(context, 1).mode == "trainer_base"
+
+
+@pytest.mark.anyio
+async def test_base_workout_can_finish_with_skipped_exercises(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+
+    await press(app, context, "trainer:base")
+    query = await press(app, context, "trainer:base:finish")
+
+    assert "0 из 7" in query.edit_message_text.await_args.args[0]
+    assert app.get_chat_state(context, 1).mode is None
+
+
+@pytest.mark.anyio
+async def test_additional_exercise_does_not_increase_base_progress(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+    state = app.get_chat_state(context, 1)
+    state.mode = "trainer_base"
+    state.payload = {"base_session": True, "base_completed": ["bench_press"]}
+
+    query = await press(app, context, "trainer:base:finish")
+
+    assert "0 из 7" in query.edit_message_text.await_args.args[0]
 
 
 def test_combined_requirements_drop_aiogram_and_include_excel_export() -> None:

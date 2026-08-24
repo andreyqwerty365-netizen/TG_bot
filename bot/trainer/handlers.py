@@ -16,6 +16,7 @@ from .database import TrainerDatabase
 from .exporter import build_workout_export
 from .views import (
     after_save_keyboard,
+    base_workout_keyboard,
     exercises_keyboard,
     format_number,
     groups_keyboard,
@@ -34,6 +35,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 REPS_BY_SET = (12, 10, 8)
+BASE_WORKOUT_IDS = (
+    "lat_pulldown",
+    "seated_cable_row",
+    "ez_bar_curl",
+    "alternating_dumbbell_curl",
+    "triceps_pushdown",
+    "pec_deck",
+    "treadmill_walking",
+)
 
 
 def _parse_number(text: str | None, *, allow_zero: bool) -> float | None:
@@ -130,6 +140,62 @@ class TrainerHandlers:
             await query.edit_message_text("1. Выберите группу упражнений", reply_markup=groups_keyboard(self.catalog.groups))
             return True
 
+        if data == "trainer:base":
+            await self._cleanup_photo(context, chat_id, state)
+            state.mode = "trainer_base"
+            state.payload = {"base_session": True, "base_completed": []}
+            await self._render_base_workout(query, state)
+            return True
+
+        if data == "trainer:base:return":
+            await self._cleanup_photo(context, chat_id, state)
+            state.mode = "trainer_base"
+            state.payload = self._base_payload(state)
+            await self._render_base_workout(query, state)
+            return True
+
+        if data == "trainer:base:add":
+            state.mode = "trainer_base_group"
+            state.payload = self._base_payload(state)
+            await query.edit_message_text(
+                "Выберите группу дополнительного упражнения",
+                reply_markup=groups_keyboard(
+                    self.catalog.groups,
+                    callback_prefix="trainer:base:group",
+                    back_callback="trainer:base:return",
+                ),
+            )
+            return True
+
+        if data.startswith("trainer:base:group:"):
+            group_id = data.rsplit(":", 1)[1]
+            group = self.catalog.get_group(group_id)
+            if group is None:
+                await self._render_base_workout(query, state)
+                return True
+            state.mode = "trainer_base_exercise"
+            state.payload = self._base_payload(state)
+            await query.edit_message_text(
+                f"{group.name}: выберите упражнение",
+                reply_markup=exercises_keyboard(
+                    group,
+                    callback_prefix="trainer:base:exercise",
+                    back_callback="trainer:base:add",
+                ),
+            )
+            return True
+
+        if data == "trainer:base:finish":
+            await self._cleanup_photo(context, chat_id, state)
+            completed_count = len(self._base_completed(state))
+            state.mode = None
+            state.payload = {}
+            await query.edit_message_text(
+                f"🏁 Базовая тренировка завершена\n\nВыполнено: {completed_count} из {len(BASE_WORKOUT_IDS)}",
+                reply_markup=trainer_main_menu(),
+            )
+            return True
+
         if data == "trainer:history":
             text, days = self._history_overview(user_id)
             await query.edit_message_text(text, reply_markup=history_keyboard(days))
@@ -165,14 +231,20 @@ class TrainerHandlers:
             await query.edit_message_text(f"2. {group.name}: выберите упражнение", reply_markup=exercises_keyboard(group))
             return True
 
-        if data.startswith("trainer:exercise:"):
+        if data.startswith("trainer:exercise:") or data.startswith("trainer:base:exercise:"):
+            is_base_session = data.startswith("trainer:base:exercise:")
             exercise_id = data.rsplit(":", 1)[1]
             resolved = self.catalog.get_exercise(exercise_id)
             if resolved is None:
                 await query.edit_message_text("Упражнение не найдено.", reply_markup=groups_keyboard(self.catalog.groups))
                 return True
             group, exercise = resolved
-            state.payload = {"group_id": group.id, "exercise_id": exercise.id}
+            base_payload = self._base_payload(state) if is_base_session else {}
+            state.payload = {
+                **base_payload,
+                "group_id": group.id,
+                "exercise_id": exercise.id,
+            }
             await self._send_exercise_photo(context, chat_id, state, exercise)
             if exercise.type == "distance":
                 state.mode = "trainer_distance"
@@ -190,6 +262,11 @@ class TrainerHandlers:
 
         if data == "trainer:back:exercises":
             await self._cleanup_photo(context, chat_id, state)
+            if state.payload.get("base_session"):
+                state.mode = "trainer_base"
+                state.payload = self._base_payload(state)
+                await self._render_base_workout(query, state)
+                return True
             group = self.catalog.get_group(str(state.payload.get("group_id", "")))
             if group is None:
                 state.mode = "trainer_group"
@@ -207,7 +284,17 @@ class TrainerHandlers:
                 await query.edit_message_text("Упражнение не найдено.", reply_markup=groups_keyboard(self.catalog.groups))
                 return True
             _, exercise = resolved
-            preserved = {key: state.payload[key] for key in ("group_id", "exercise_id", "photo_message_id") if key in state.payload}
+            preserved = {
+                key: state.payload[key]
+                for key in (
+                    "group_id",
+                    "exercise_id",
+                    "photo_message_id",
+                    "base_session",
+                    "base_completed",
+                )
+                if key in state.payload
+            }
             state.mode = "trainer_sets"
             state.payload = preserved
             await query.edit_message_text(
@@ -364,6 +451,21 @@ class TrainerHandlers:
                 distance_km=distance,
             )
             await self._cleanup_photo(context, chat_id, state)
+            if state.payload.get("base_session"):
+                completed = self._base_completed(state)
+                completed.add(exercise.id)
+                state.mode = "trainer_base"
+                state.payload = {
+                    "base_session": True,
+                    "base_completed": sorted(completed),
+                }
+                await app.send_active(
+                    context,
+                    chat_id,
+                    f"✅ {exercise.name} сохранено\n\n{self._base_text(state)}",
+                    reply_markup=self._base_keyboard(state),
+                )
+                return True
             state.mode = None
             state.payload = {}
             await app.send_active(
@@ -394,6 +496,49 @@ class TrainerHandlers:
         if resolved is None or resolved[0].id != str(state.payload.get("group_id", "")):
             return None
         return resolved
+
+    def _base_exercises(self) -> tuple[Exercise, ...]:
+        exercises: list[Exercise] = []
+        for exercise_id in BASE_WORKOUT_IDS:
+            resolved = self.catalog.get_exercise(exercise_id)
+            if resolved is not None:
+                exercises.append(resolved[1])
+        return tuple(exercises)
+
+    @staticmethod
+    def _base_completed(state: "ChatState") -> set[str]:
+        raw_completed = state.payload.get("base_completed", [])
+        if not isinstance(raw_completed, list):
+            return set()
+        base_ids = set(BASE_WORKOUT_IDS)
+        return {
+            str(exercise_id)
+            for exercise_id in raw_completed
+            if str(exercise_id) in base_ids
+        }
+
+    def _base_payload(self, state: "ChatState") -> dict[str, object]:
+        return {
+            "base_session": True,
+            "base_completed": sorted(self._base_completed(state)),
+        }
+
+    def _base_text(self, state: "ChatState") -> str:
+        completed_count = len(self._base_completed(state))
+        return (
+            "🏋️ Базовая тренировка\n\n"
+            f"Выполнено: {completed_count} из {len(BASE_WORKOUT_IDS)}\n"
+            "Выберите любое свободное упражнение:"
+        )
+
+    def _base_keyboard(self, state: "ChatState"):
+        return base_workout_keyboard(self._base_exercises(), self._base_completed(state))
+
+    async def _render_base_workout(self, query, state: "ChatState") -> None:
+        await query.edit_message_text(
+            self._base_text(state),
+            reply_markup=self._base_keyboard(state),
+        )
 
     def _editor_text(self, exercise: Exercise, state: "ChatState") -> str:
         weights = [float(value) for value in state.payload["weights"]]
@@ -438,6 +583,19 @@ class TrainerHandlers:
             for rep, weight in zip(REPS_BY_SET, weights, strict=False)
         )
         await self._cleanup_photo(context, update.effective_chat.id, state)
+        if state.payload.get("base_session"):
+            completed = self._base_completed(state)
+            completed.add(exercise.id)
+            state.mode = "trainer_base"
+            state.payload = {
+                "base_session": True,
+                "base_completed": sorted(completed),
+            }
+            await query.edit_message_text(
+                f"✅ {exercise.name} сохранено\n\n{self._base_text(state)}",
+                reply_markup=self._base_keyboard(state),
+            )
+            return
         state.mode = None
         state.payload = {}
         await query.edit_message_text(
