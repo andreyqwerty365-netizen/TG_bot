@@ -183,7 +183,7 @@ class TrainerHandlers:
             else:
                 state.mode = "trainer_sets"
                 await query.edit_message_text(
-                    f"3. {exercise.name}: сколько подходов?\n\n1-й — 12 повторений\n2-й — 10\n3-й — 8",
+                    f"3. {exercise.name}: сколько подходов?",
                     reply_markup=sets_keyboard(),
                 )
             return True
@@ -211,7 +211,7 @@ class TrainerHandlers:
             state.mode = "trainer_sets"
             state.payload = preserved
             await query.edit_message_text(
-                f"3. {exercise.name}: сколько подходов?\n\n1-й — 12 повторений\n2-й — 10\n3-й — 8",
+                f"3. {exercise.name}: сколько подходов?",
                 reply_markup=sets_keyboard(),
             )
             return True
@@ -497,8 +497,21 @@ class TrainerHandlers:
         if path is None or not path.is_file():
             return
         try:
+            caption_lines = [exercise.name]
+            if exercise.technique:
+                caption_lines.extend(
+                    ["", "Как выполнять:", *[f"{index}. {note}" for index, note in enumerate(exercise.technique, 1)]]
+                )
+            if exercise.mistakes:
+                caption_lines.extend(
+                    ["", "Частые ошибки:", *[f"• {note}" for note in exercise.mistakes]]
+                )
             with path.open("rb") as image:
-                message = await context.bot.send_photo(chat_id=chat_id, photo=image, caption=exercise.name)
+                message = await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=image,
+                    caption="\n".join(caption_lines),
+                )
             state.payload["photo_message_id"] = message.message_id
         except TelegramError:
             logger.warning("Failed to send trainer exercise image", exc_info=True)

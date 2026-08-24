@@ -60,6 +60,18 @@ def test_catalog_uses_short_exercise_names_and_includes_calves() -> None:
     assert calves[0].id == "legs"
 
 
+def test_every_exercise_has_four_frame_card_and_technique_notes() -> None:
+    catalog_module = load_trainer_module("catalog")
+    catalog = catalog_module.ExerciseCatalog(PROJECT_DIR / "exercises.json")
+
+    for group in catalog.groups:
+        for exercise in group.exercises:
+            assert exercise.image_path is not None, exercise.name
+            assert exercise.image_path.is_file(), exercise.name
+            assert len(exercise.technique) >= 3, exercise.name
+            assert len(exercise.mistakes) >= 2, exercise.name
+
+
 def test_catalog_rejects_duplicate_exercise_ids(tmp_path: Path) -> None:
     catalog_module = load_trainer_module("catalog")
     path = tmp_path / "exercises.json"

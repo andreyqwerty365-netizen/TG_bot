@@ -113,6 +113,21 @@ async def test_trainer_menu_is_routed_before_secretary_fallback(tmp_path: Path) 
 
 
 @pytest.mark.anyio
+async def test_exercise_selection_uses_concise_prompt_and_sends_technique_card(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+
+    await press(app, context, "trainer:workout")
+    await press(app, context, "trainer:group:chest")
+    query = await press(app, context, "trainer:exercise:bench_press")
+
+    prompt = query.edit_message_text.await_args.args[0]
+    assert prompt == "3. Жим лёжа: сколько подходов?"
+    caption = context.bot.send_photo.await_args.kwargs["caption"]
+    assert "Как выполнять:" in caption
+    assert "Частые ошибки:" in caption
+
+
+@pytest.mark.anyio
 async def test_strength_workout_flow_uses_shared_chat_state_and_separate_database(tmp_path: Path) -> None:
     app, context = build_runtime(tmp_path)
 

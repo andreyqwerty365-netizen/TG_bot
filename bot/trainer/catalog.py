@@ -16,6 +16,8 @@ class Exercise:
     weight_steps: tuple[float, ...]
     type: str = "strength"
     image_path: Path | None = None
+    technique: tuple[str, ...] = ()
+    mistakes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,8 +96,22 @@ class ExerciseCatalog:
                 image_path = self._validate_image_path(
                     raw_exercise.get("image"), exercise_name
                 )
+                technique = self._validate_notes(
+                    raw_exercise.get("technique"), "technique", exercise_name
+                )
+                mistakes = self._validate_notes(
+                    raw_exercise.get("mistakes"), "mistakes", exercise_name
+                )
                 exercises.append(
-                    Exercise(exercise_id, exercise_name, steps, exercise_type, image_path)
+                    Exercise(
+                        id=exercise_id,
+                        name=exercise_name,
+                        weight_steps=steps,
+                        type=exercise_type,
+                        image_path=image_path,
+                        technique=technique,
+                        mistakes=mistakes,
+                    )
                 )
 
             groups.append(ExerciseGroup(group_id, group_name, tuple(exercises)))
@@ -153,6 +169,25 @@ class ExerciseCatalog:
                 f"Не найдена картинка упражнения «{exercise_name}»: {relative_path}"
             )
         return image_path
+
+    @staticmethod
+    def _validate_notes(
+        value: object, field_name: str, exercise_name: str
+    ) -> tuple[str, ...]:
+        if value is None:
+            return ()
+        if not isinstance(value, list) or len(value) > 8:
+            raise ValueError(
+                f"{field_name} у упражнения «{exercise_name}» должен быть массивом до 8 строк"
+            )
+        notes: list[str] = []
+        for item in value:
+            if not isinstance(item, str) or not item.strip() or len(item.strip()) > 160:
+                raise ValueError(
+                    f"Некорректная строка в {field_name} у упражнения «{exercise_name}»"
+                )
+            notes.append(item.strip())
+        return tuple(notes)
 
     @property
     def groups(self) -> tuple[ExerciseGroup, ...]:
