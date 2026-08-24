@@ -128,6 +128,23 @@ def test_baseline_is_fixed_and_recent_weights_are_updated(tmp_path: Path) -> Non
     assert profile.last_weights == (45, 50, 55)
 
 
+def test_active_base_session_persists_across_database_instances(tmp_path: Path) -> None:
+    database_module = load_trainer_module("database")
+    path = tmp_path / "workouts.sqlite3"
+    first = database_module.TrainerDatabase(path)
+
+    first.save_active_base_session(123, ("lat_pulldown", "pec_deck"))
+
+    restarted = database_module.TrainerDatabase(path)
+    assert restarted.get_active_base_session(123) == (
+        "lat_pulldown",
+        "pec_deck",
+    )
+
+    restarted.clear_active_base_session(123)
+    assert first.get_active_base_session(123) is None
+
+
 def test_strength_cardio_history_and_excel_export(tmp_path: Path) -> None:
     openpyxl = pytest.importorskip("openpyxl")
     database_module = load_trainer_module("database")

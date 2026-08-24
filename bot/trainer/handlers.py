@@ -77,7 +77,9 @@ class TrainerHandlers:
         self.timezone = timezone
 
     async def command_trainer(self, app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await self._send_main(app, context, update.effective_chat.id)
+        await self._send_main(
+            app, context, update.effective_chat.id, update.effective_user.id
+        )
 
     async def command_workout(self, app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await self._send_groups(app, context, update.effective_chat.id)
@@ -98,7 +100,9 @@ class TrainerHandlers:
         state = app.get_chat_state(context, update.effective_chat.id)
         if state.mode and state.mode.startswith("trainer_"):
             await self._cleanup_photo(context, update.effective_chat.id, state)
-        await self._send_main(app, context, update.effective_chat.id)
+        await self._send_main(
+            app, context, update.effective_chat.id, update.effective_user.id
+        )
 
     async def handle_callback(self, app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
         query = update.callback_query
@@ -126,18 +130,26 @@ class TrainerHandlers:
 
         await query.answer()
 
+        if (
+            data.startswith("trainer:base:")
+            and not state.payload.get("base_session")
+        ):
+            active_payload = self._active_base_payload(user_id, state)
+            if active_payload is not None:
+                state.payload = active_payload
+
         if data in {"menu:trainer", "trainer:main", "trainer:cancel"}:
             await self._cleanup_photo(context, chat_id, state)
-            has_active_base = bool(state.payload.get("base_session"))
-            if has_active_base:
+            active_payload = self._active_base_payload(user_id, state)
+            if active_payload is not None:
                 state.mode = "trainer_base_paused"
-                state.payload = self._base_payload(state)
+                state.payload = active_payload
             else:
                 state.mode = None
                 state.payload = {}
             await query.edit_message_text(
                 "🏋️ Персональный тренер",
-                reply_markup=trainer_main_menu(has_active_base),
+                reply_markup=trainer_main_menu(active_payload is not None),
             )
             return True
 
@@ -151,10 +163,12 @@ class TrainerHandlers:
         if data in {"trainer:base", "trainer:base:resume"}:
             await self._cleanup_photo(context, chat_id, state)
             state.mode = "trainer_base"
-            if state.payload.get("base_session"):
-                state.payload = self._base_payload(state)
-            else:
+            active_payload = self._active_base_payload(user_id, state)
+            if active_payload is None:
                 state.payload = {"base_session": True, "base_completed": []}
+                self.database.save_active_base_session(user_id, ())
+            else:
+                state.payload = active_payload
             await self._render_base_workout(query, state)
             return True
 
@@ -199,6 +213,7 @@ class TrainerHandlers:
         if data == "trainer:base:finish":
             await self._cleanup_photo(context, chat_id, state)
             completed_count = len(self._base_completed(state))
+            self.database.clear_active_base_session(user_id)
             state.mode = None
             state.payload = {}
             await query.edit_message_text(
@@ -230,7 +245,9 @@ class TrainerHandlers:
             await self._send_export(app, context, chat_id, user_id)
             await query.edit_message_text(
                 "✅ Excel-файл отправлен.",
-                reply_markup=trainer_main_menu(bool(state.payload.get("base_session"))),
+                reply_markup=trainer_main_menu(
+                    self._active_base_payload(user_id, state) is not None
+                ),
             )
             return True
 
@@ -450,7 +467,7 @@ class TrainerHandlers:
                 return True
             resolved = self._resolved_exercise(state)
             if resolved is None:
-                await self._send_main(app, context, chat_id)
+                await self._send_main(app, context, chat_id, update.effective_user.id)
                 return True
             group, exercise = resolved
             user = update.effective_user
@@ -473,6 +490,7 @@ class TrainerHandlers:
                     "base_session": True,
                     "base_completed": sorted(completed),
                 }
+                self.database.save_active_base_session(user.id, sorted(completed))
                 await app.send_active(
                     context,
                     chat_id,
@@ -492,12 +510,18 @@ class TrainerHandlers:
 
         return True
 
-    async def _send_main(self, app: "BotApp", context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
+    async def _send_main(
+        self,
+        app: "BotApp",
+        context: ContextTypes.DEFAULT_TYPE,
+        chat_id: int,
+        user_id: int,
+    ) -> None:
         state = app.get_chat_state(context, chat_id)
-        has_active_base = bool(state.payload.get("base_session"))
-        if has_active_base:
+        active_payload = self._active_base_payload(user_id, state)
+        if active_payload is not None:
             state.mode = "trainer_base_paused"
-            state.payload = self._base_payload(state)
+            state.payload = active_payload
         else:
             state.mode = None
             state.payload = {}
@@ -505,7 +529,7 @@ class TrainerHandlers:
             context,
             chat_id,
             "🏋️ Персональный тренер",
-            reply_markup=trainer_main_menu(has_active_base),
+            reply_markup=trainer_main_menu(active_payload is not None),
         )
 
     async def _send_groups(self, app: "BotApp", context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
@@ -547,16 +571,51 @@ class TrainerHandlers:
             "base_completed": sorted(self._base_completed(state)),
         }
 
+    def _active_base_payload(
+        self, user_id: int, state: "ChatState"
+    ) -> dict[str, object] | None:
+        completed = self.database.get_active_base_session(user_id)
+        if completed is None:
+            if not state.payload.get("base_session"):
+                return None
+            completed = tuple(sorted(self._base_completed(state)))
+            self.database.save_active_base_session(user_id, completed)
+        payload = {
+            "base_session": True,
+            "base_completed": list(completed),
+        }
+        state.payload = payload
+        return self._base_payload(state)
+
+    def _next_base_exercise(self, state: "ChatState") -> Exercise | None:
+        completed = self._base_completed(state)
+        for exercise in self._base_exercises():
+            if exercise.id not in completed:
+                return exercise
+        return None
+
     def _base_text(self, state: "ChatState") -> str:
         completed_count = len(self._base_completed(state))
+        recommended = self._next_base_exercise(state)
+        recommendation = (
+            f"Рекомендуется дальше: {recommended.name}\n"
+            if recommended is not None
+            else "Все базовые упражнения выполнены.\n"
+        )
         return (
             "🏋️ Базовая тренировка\n\n"
             f"Выполнено: {completed_count} из {len(BASE_WORKOUT_IDS)}\n"
+            f"{recommendation}"
             "Выберите любое свободное упражнение:"
         )
 
     def _base_keyboard(self, state: "ChatState"):
-        return base_workout_keyboard(self._base_exercises(), self._base_completed(state))
+        recommended = self._next_base_exercise(state)
+        return base_workout_keyboard(
+            self._base_exercises(),
+            self._base_completed(state),
+            recommended.id if recommended is not None else None,
+        )
 
     async def _render_base_workout(self, query, state: "ChatState") -> None:
         await query.edit_message_text(
@@ -615,6 +674,7 @@ class TrainerHandlers:
                 "base_session": True,
                 "base_completed": sorted(completed),
             }
+            self.database.save_active_base_session(user.id, sorted(completed))
             await query.edit_message_text(
                 f"✅ {exercise.name} сохранено\n\n{self._base_text(state)}",
                 reply_markup=self._base_keyboard(state),

@@ -37,12 +37,19 @@ def trainer_main_menu(has_active_base: bool = False) -> InlineKeyboardMarkup:
 
 
 def base_workout_keyboard(
-    exercises: tuple[Exercise, ...], completed_ids: set[str]
+    exercises: tuple[Exercise, ...],
+    completed_ids: set[str],
+    recommended_id: str | None = None,
 ) -> InlineKeyboardMarkup:
     rows = [
         [
             InlineKeyboardButton(
-                ("✅ " if exercise.id in completed_ids else "") + exercise.name,
+                (
+                    "✅ "
+                    if exercise.id in completed_ids
+                    else "➡️ " if exercise.id == recommended_id else ""
+                )
+                + exercise.name,
                 callback_data=f"trainer:base:exercise:{exercise.id}",
             )
         ]

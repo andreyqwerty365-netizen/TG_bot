@@ -107,11 +107,67 @@ class TrainerDatabase:
             UNIQUE (workout_id, set_number)
         );
 
+        CREATE TABLE IF NOT EXISTS active_base_sessions (
+            telegram_user_id INTEGER PRIMARY KEY,
+            completed_ids_json TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_workouts_user_date
             ON workouts(telegram_user_id, completed_at DESC);
         """
         with self._lock, self._connection() as connection:
             connection.executescript(schema)
+            connection.commit()
+
+    def get_active_base_session(
+        self, telegram_user_id: int
+    ) -> tuple[str, ...] | None:
+        with self._lock, self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT completed_ids_json
+                FROM active_base_sessions
+                WHERE telegram_user_id = ?
+                """,
+                (telegram_user_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        values = json.loads(row["completed_ids_json"])
+        return tuple(str(value) for value in values)
+
+    def save_active_base_session(
+        self, telegram_user_id: int, completed_ids: Sequence[str]
+    ) -> None:
+        now = utc_now_iso()
+        unique_ids = tuple(dict.fromkeys(str(value) for value in completed_ids))
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO active_base_sessions (
+                    telegram_user_id, completed_ids_json, started_at, updated_at
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(telegram_user_id) DO UPDATE SET
+                    completed_ids_json = excluded.completed_ids_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    telegram_user_id,
+                    json.dumps(unique_ids, ensure_ascii=False),
+                    now,
+                    now,
+                ),
+            )
+            connection.commit()
+
+    def clear_active_base_session(self, telegram_user_id: int) -> None:
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                "DELETE FROM active_base_sessions WHERE telegram_user_id = ?",
+                (telegram_user_id,),
+            )
             connection.commit()
 
     @staticmethod

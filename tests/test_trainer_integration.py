@@ -94,6 +94,51 @@ async def test_base_workout_contains_only_regular_exercises_in_free_order(tmp_pa
 
 
 @pytest.mark.anyio
+async def test_base_workout_highlights_next_recommended_exercise(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+
+    initial_query = await press(app, context, "trainer:base")
+    initial_labels = callback_labels(
+        initial_query.edit_message_text.await_args.kwargs["reply_markup"]
+    )
+    assert "Рекомендуется дальше: Верхний хват" in initial_query.edit_message_text.await_args.args[0]
+    assert initial_labels["trainer:base:exercise:lat_pulldown"].startswith("➡️")
+
+    await press(app, context, "trainer:base:exercise:lat_pulldown")
+    await press(app, context, "trainer:sets:1")
+    update = SimpleNamespace(
+        effective_chat=SimpleNamespace(id=1),
+        effective_user=SimpleNamespace(id=1, username="tester", full_name="Test User"),
+        message=SimpleNamespace(text="10"),
+    )
+    await on_text(app, update, context)
+    saved_query = await press(app, context, "trainer:save")
+    saved_labels = callback_labels(
+        saved_query.edit_message_text.await_args.kwargs["reply_markup"]
+    )
+
+    assert "Рекомендуется дальше: Бабочка" in saved_query.edit_message_text.await_args.args[0]
+    assert saved_labels["trainer:base:exercise:lat_pulldown"].startswith("✅")
+    assert saved_labels["trainer:base:exercise:pec_deck"].startswith("➡️")
+    assert {
+        callback
+        for callback in saved_labels
+        if callback.startswith("trainer:base:exercise:")
+    } == {
+        f"trainer:base:exercise:{exercise_id}"
+        for exercise_id in (
+            "lat_pulldown",
+            "pec_deck",
+            "seated_cable_row",
+            "triceps_pushdown",
+            "ez_bar_curl",
+            "alternating_dumbbell_curl",
+            "treadmill_walking",
+        )
+    }
+
+
+@pytest.mark.anyio
 async def test_saved_base_exercise_returns_to_checklist_and_marks_it_complete(tmp_path: Path) -> None:
     app, context = build_runtime(tmp_path)
 
@@ -138,6 +183,66 @@ async def test_trainer_menu_preserves_active_base_workout_and_allows_resume(tmp_
     )
     assert base_labels["trainer:base:exercise:lat_pulldown"].startswith("✅")
     assert "1 из 7" in resume_query.edit_message_text.await_args.args[0]
+
+
+@pytest.mark.anyio
+async def test_active_base_workout_survives_secretary_and_runtime_restart(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+
+    await press(app, context, "trainer:base")
+    await press(app, context, "trainer:base:exercise:lat_pulldown")
+    await press(app, context, "trainer:sets:1")
+    update = SimpleNamespace(
+        effective_chat=SimpleNamespace(id=1),
+        effective_user=SimpleNamespace(id=1, username="tester", full_name="Test User"),
+        message=SimpleNamespace(text="10"),
+    )
+    await on_text(app, update, context)
+    await press(app, context, "trainer:save")
+    await press(app, context, "trainer:main")
+    await press(app, context, "menu:main")
+    assert app.get_chat_state(context, 1).payload == {}
+
+    restarted_app, restarted_context = build_runtime(tmp_path)
+    menu_query = await press(restarted_app, restarted_context, "menu:trainer")
+    menu_labels = callback_labels(
+        menu_query.edit_message_text.await_args.kwargs["reply_markup"]
+    )
+    assert "trainer:base:resume" in menu_labels
+
+    resume_query = await press(
+        restarted_app, restarted_context, "trainer:base:resume"
+    )
+    resume_labels = callback_labels(
+        resume_query.edit_message_text.await_args.kwargs["reply_markup"]
+    )
+    assert resume_labels["trainer:base:exercise:lat_pulldown"].startswith("✅")
+    assert "1 из 7" in resume_query.edit_message_text.await_args.args[0]
+
+
+@pytest.mark.anyio
+async def test_old_base_checklist_restores_progress_after_runtime_restart(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+    await press(app, context, "trainer:base")
+    await press(app, context, "trainer:base:exercise:lat_pulldown")
+    await press(app, context, "trainer:sets:1")
+    update = SimpleNamespace(
+        effective_chat=SimpleNamespace(id=1),
+        effective_user=SimpleNamespace(id=1, username="tester", full_name="Test User"),
+        message=SimpleNamespace(text="10"),
+    )
+    await on_text(app, update, context)
+    await press(app, context, "trainer:save")
+
+    restarted_app, restarted_context = build_runtime(tmp_path)
+    await press(
+        restarted_app,
+        restarted_context,
+        "trainer:base:exercise:pec_deck",
+    )
+
+    restarted_state = restarted_app.get_chat_state(restarted_context, 1)
+    assert restarted_state.payload["base_completed"] == ["lat_pulldown"]
 
 
 @pytest.mark.anyio
