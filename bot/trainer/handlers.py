@@ -128,9 +128,17 @@ class TrainerHandlers:
 
         if data in {"menu:trainer", "trainer:main", "trainer:cancel"}:
             await self._cleanup_photo(context, chat_id, state)
-            state.mode = None
-            state.payload = {}
-            await query.edit_message_text("🏋️ Персональный тренер", reply_markup=trainer_main_menu())
+            has_active_base = bool(state.payload.get("base_session"))
+            if has_active_base:
+                state.mode = "trainer_base_paused"
+                state.payload = self._base_payload(state)
+            else:
+                state.mode = None
+                state.payload = {}
+            await query.edit_message_text(
+                "🏋️ Персональный тренер",
+                reply_markup=trainer_main_menu(has_active_base),
+            )
             return True
 
         if data == "trainer:workout":
@@ -140,10 +148,13 @@ class TrainerHandlers:
             await query.edit_message_text("1. Выберите группу упражнений", reply_markup=groups_keyboard(self.catalog.groups))
             return True
 
-        if data == "trainer:base":
+        if data in {"trainer:base", "trainer:base:resume"}:
             await self._cleanup_photo(context, chat_id, state)
             state.mode = "trainer_base"
-            state.payload = {"base_session": True, "base_completed": []}
+            if state.payload.get("base_session"):
+                state.payload = self._base_payload(state)
+            else:
+                state.payload = {"base_session": True, "base_completed": []}
             await self._render_base_workout(query, state)
             return True
 
@@ -217,7 +228,10 @@ class TrainerHandlers:
 
         if data == "trainer:export":
             await self._send_export(app, context, chat_id, user_id)
-            await query.edit_message_text("✅ Excel-файл отправлен.", reply_markup=trainer_main_menu())
+            await query.edit_message_text(
+                "✅ Excel-файл отправлен.",
+                reply_markup=trainer_main_menu(bool(state.payload.get("base_session"))),
+            )
             return True
 
         if data.startswith("trainer:group:") or data.startswith("trainer:again:"):
@@ -480,9 +494,19 @@ class TrainerHandlers:
 
     async def _send_main(self, app: "BotApp", context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
         state = app.get_chat_state(context, chat_id)
-        state.mode = None
-        state.payload = {}
-        await app.send_active(context, chat_id, "🏋️ Персональный тренер", reply_markup=trainer_main_menu())
+        has_active_base = bool(state.payload.get("base_session"))
+        if has_active_base:
+            state.mode = "trainer_base_paused"
+            state.payload = self._base_payload(state)
+        else:
+            state.mode = None
+            state.payload = {}
+        await app.send_active(
+            context,
+            chat_id,
+            "🏋️ Персональный тренер",
+            reply_markup=trainer_main_menu(has_active_base),
+        )
 
     async def _send_groups(self, app: "BotApp", context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
         state = app.get_chat_state(context, chat_id)

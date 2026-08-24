@@ -115,6 +115,32 @@ async def test_saved_base_exercise_returns_to_checklist_and_marks_it_complete(tm
 
 
 @pytest.mark.anyio
+async def test_trainer_menu_preserves_active_base_workout_and_allows_resume(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+    state = app.get_chat_state(context, 1)
+    state.mode = "trainer_base"
+    state.payload = {
+        "base_session": True,
+        "base_completed": ["lat_pulldown"],
+    }
+
+    menu_query = await press(app, context, "trainer:main")
+
+    menu_labels = callback_labels(
+        menu_query.edit_message_text.await_args.kwargs["reply_markup"]
+    )
+    assert "trainer:base:resume" in menu_labels
+    assert state.payload["base_completed"] == ["lat_pulldown"]
+
+    resume_query = await press(app, context, "trainer:base:resume")
+    base_labels = callback_labels(
+        resume_query.edit_message_text.await_args.kwargs["reply_markup"]
+    )
+    assert base_labels["trainer:base:exercise:lat_pulldown"].startswith("✅")
+    assert "1 из 7" in resume_query.edit_message_text.await_args.args[0]
+
+
+@pytest.mark.anyio
 async def test_base_workout_can_finish_with_skipped_exercises(tmp_path: Path) -> None:
     app, context = build_runtime(tmp_path)
 

@@ -9,11 +9,24 @@ def format_number(value: float) -> str:
     return f"{value:g}"
 
 
-def trainer_main_menu() -> InlineKeyboardMarkup:
+def trainer_main_menu(has_active_base: bool = False) -> InlineKeyboardMarkup:
+    primary_button = (
+        InlineKeyboardButton(
+            "▶️ Продолжить тренировку", callback_data="trainer:base:resume"
+        )
+        if has_active_base
+        else InlineKeyboardButton(
+            "🏋️ Базовая тренировка", callback_data="trainer:base"
+        )
+    )
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🏋️ Базовая тренировка", callback_data="trainer:base")],
-            [InlineKeyboardButton("➕ Другое упражнение", callback_data="trainer:workout")],
+            [primary_button],
+            *(
+                []
+                if has_active_base
+                else [[InlineKeyboardButton("➕ Другое упражнение", callback_data="trainer:workout")]]
+            ),
             [
                 InlineKeyboardButton("📋 История", callback_data="trainer:history"),
                 InlineKeyboardButton("📊 Excel", callback_data="trainer:export"),
