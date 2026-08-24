@@ -46,8 +46,17 @@ def _parse_number(text: str | None, *, allow_zero: bool) -> float | None:
 
 def _initial_weights(base_weight: float, recent: tuple[float, ...], sets_count: int) -> list[float]:
     result = list(recent[:sets_count])
-    result.extend([base_weight] * (sets_count - len(result)))
+    fallback = result[-1] if result else base_weight
+    result.extend([fallback] * (sets_count - len(result)))
     return result
+
+
+def _set_weight_and_raise_following(weights: list[float], active_set: int, value: float) -> list[float]:
+    weights[active_set] = value
+    for index in range(active_set + 1, len(weights)):
+        if weights[index] < value:
+            weights[index] = value
+    return weights
 
 
 class TrainerHandlers:
@@ -241,8 +250,7 @@ class TrainerHandlers:
             value = round(weights[active_set] + delta, 2)
             if not 0 <= value <= 1000:
                 return True
-            weights[active_set] = value
-            state.payload["weights"] = weights
+            state.payload["weights"] = _set_weight_and_raise_following(weights, active_set, value)
             resolved = self._resolved_exercise(state)
             if resolved:
                 await self._render_editor(query, state, resolved[1])
@@ -301,7 +309,8 @@ class TrainerHandlers:
                 await app.send_active(context, chat_id, "Введите вес числом от 0 до 1000.", reply_markup=input_keyboard("trainer:editor:return"))
                 return True
             weights = [float(item) for item in state.payload["weights"]]
-            weights[int(state.payload.get("active_set", 0))] = value
+            active_set = int(state.payload.get("active_set", 0))
+            weights = _set_weight_and_raise_following(weights, active_set, value)
             state.payload["weights"] = weights
             state.mode = "trainer_editing_weights"
             resolved = self._resolved_exercise(state)

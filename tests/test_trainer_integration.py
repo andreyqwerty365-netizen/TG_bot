@@ -190,6 +190,80 @@ async def test_invalid_weight_delta_answers_callback_once_with_alert(tmp_path: P
     assert state.payload["weights"] == [1000.0]
 
 
+@pytest.mark.anyio
+async def test_increasing_set_weight_raises_lighter_following_sets(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+    state = app.get_chat_state(context, 1)
+    state.mode = "trainer_editing_weights"
+    state.payload = {
+        "group_id": "legs",
+        "exercise_id": "squat",
+        "sets_count": 3,
+        "active_set": 0,
+        "base_weight": 10.0,
+        "weights": [10.0, 10.0, 17.5],
+    }
+
+    await press(app, context, "trainer:delta:5")
+
+    assert state.payload["weights"] == [15.0, 15.0, 17.5]
+
+    state.payload["active_set"] = 1
+    await press(app, context, "trainer:delta:5")
+
+    assert state.payload["weights"] == [15.0, 20.0, 20.0]
+
+
+@pytest.mark.anyio
+async def test_manual_weight_raises_lighter_following_sets(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+    state = app.get_chat_state(context, 1)
+    state.mode = "trainer_manual_weight"
+    state.payload = {
+        "group_id": "legs",
+        "exercise_id": "squat",
+        "sets_count": 3,
+        "active_set": 0,
+        "base_weight": 10.0,
+        "weights": [10.0, 10.0, 12.5],
+    }
+    update = SimpleNamespace(
+        effective_chat=SimpleNamespace(id=1),
+        effective_user=SimpleNamespace(id=1, username="tester", full_name="Test User"),
+        message=SimpleNamespace(text="15"),
+    )
+
+    await on_text(app, update, context)
+
+    assert state.payload["weights"] == [15.0, 15.0, 15.0]
+
+
+@pytest.mark.anyio
+async def test_new_workout_reuses_last_weights_and_extends_last_known_weight(tmp_path: Path) -> None:
+    app, context = build_runtime(tmp_path)
+    app.trainer_database.save_workout(
+        telegram_user_id=1,
+        username="tester",
+        full_name="Test User",
+        group_id="legs",
+        group_name="Ноги",
+        exercise_id="squat",
+        exercise_name="Приседания со штангой",
+        reps=(12,),
+        weights=(15,),
+        base_weight=10,
+    )
+
+    await press(app, context, "trainer:workout")
+    await press(app, context, "trainer:group:legs")
+    await press(app, context, "trainer:exercise:squat")
+    await press(app, context, "trainer:sets:3")
+
+    state = app.get_chat_state(context, 1)
+    assert state.mode == "trainer_editing_weights"
+    assert state.payload["weights"] == [15.0, 15.0, 15.0]
+
+
 def test_application_uses_workout_database_next_to_notes_by_default(tmp_path: Path) -> None:
     app, _ = build_runtime(tmp_path)
 
