@@ -294,3 +294,76 @@ def test_selected_test_history_cleanup_is_exact_and_recoverable(tmp_path: Path) 
     repeated = database.cleanup_selected_test_history(ZoneInfo("Europe/Moscow"))
     assert repeated.applied is False
     assert repeated.removed_workout_ids == ()
+
+
+def test_historical_workout_for_23_august_is_added_once(tmp_path: Path) -> None:
+    database_module = load_trainer_module("database")
+    path = tmp_path / "workouts.sqlite3"
+    database = database_module.TrainerDatabase(path)
+    database.save_workout(
+        telegram_user_id=123,
+        username="tester",
+        full_name="Test User",
+        group_id="back",
+        group_name="Спина",
+        exercise_id="lat_pulldown",
+        exercise_name="Верхний хват",
+        reps=(12, 10, 8),
+        weights=(35, 40, 45),
+        base_weight=35,
+    )
+    profile_before = database.get_profile(123, "lat_pulldown")
+
+    result = database.add_historical_workout_20260823(
+        ZoneInfo("Europe/Moscow")
+    )
+
+    assert result.applied is True
+    assert len(result.inserted_workout_ids) == 5
+    assert result.backup_path.is_file()
+    assert database.get_profile(123, "lat_pulldown") == profile_before
+
+    with sqlite3.connect(path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            SELECT id, exercise_name, activity_type, distance_km, completed_at
+            FROM workouts
+            WHERE id IN (?, ?, ?, ?, ?)
+            ORDER BY completed_at
+            """,
+            result.inserted_workout_ids,
+        ).fetchall()
+        sets = {
+            row["exercise_name"]: tuple(
+                item[0]
+                for item in connection.execute(
+                    "SELECT weight FROM workout_sets WHERE workout_id = ? ORDER BY set_number",
+                    (row["id"],),
+                ).fetchall()
+            )
+            for row in rows
+            if row["activity_type"] == "strength"
+        }
+
+    assert [row["exercise_name"] for row in rows] == [
+        "Верхний хват",
+        "Нижний хват",
+        "Поднятие грифа",
+        "Трицепс",
+        "Ходьба на дорожке",
+    ]
+    assert all(row["completed_at"].startswith("2026-08-23T") for row in rows)
+    assert sets == {
+        "Верхний хват": (30, 35, 40),
+        "Нижний хват": (25, 30, 35),
+        "Поднятие грифа": (5, 15, 17.5),
+        "Трицепс": (30, 35, 40),
+    }
+    assert rows[-1]["distance_km"] == 1.7
+
+    repeated = database.add_historical_workout_20260823(
+        ZoneInfo("Europe/Moscow")
+    )
+    assert repeated.applied is False
+    assert repeated.inserted_workout_ids == ()

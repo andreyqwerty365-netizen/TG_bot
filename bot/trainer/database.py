@@ -44,8 +44,17 @@ class HistoryCleanupResult:
     backup_path: Path
 
 
+@dataclass(frozen=True, slots=True)
+class HistoricalWorkoutImportResult:
+    applied: bool
+    inserted_workout_ids: tuple[int, ...]
+    backup_path: Path
+
+
 HISTORY_CLEANUP_NAME = "remove-selected-test-workouts-2026-08-26-v1"
 HISTORY_CLEANUP_BACKUP_NAME = "workouts-before-test-cleanup-20260826.sqlite3"
+HISTORY_IMPORT_NAME = "add-workout-history-2026-08-23-v1"
+HISTORY_IMPORT_BACKUP_NAME = "workouts-before-history-addition-20260823.sqlite3"
 CURRENT_EXERCISE_NAMES = {
     "lat_pulldown": "Верхний хват",
     "seated_cable_row": "Нижний хват",
@@ -73,6 +82,7 @@ class TrainerDatabase:
         self._lock = threading.RLock()
         self._initialize()
         self.cleanup_selected_test_history(ZoneInfo("Europe/Moscow"))
+        self.add_historical_workout_20260823(ZoneInfo("Europe/Moscow"))
 
     def init(self) -> None:
         """Create or upgrade the workout schema. Safe to call repeatedly."""
@@ -304,6 +314,106 @@ class TrainerDatabase:
                 raise
 
         return HistoryCleanupResult(True, tuple(candidate_ids), backup_path)
+
+    def add_historical_workout_20260823(
+        self, local_timezone: ZoneInfo
+    ) -> HistoricalWorkoutImportResult:
+        backup_path = self.path.with_name(HISTORY_IMPORT_BACKUP_NAME)
+        with self._lock, self._connection() as connection:
+            applied = connection.execute(
+                "SELECT 1 FROM data_migrations WHERE name = ?",
+                (HISTORY_IMPORT_NAME,),
+            ).fetchone()
+            if applied is not None:
+                return HistoricalWorkoutImportResult(False, (), backup_path)
+
+            user_rows = connection.execute(
+                "SELECT DISTINCT telegram_user_id FROM workouts"
+            ).fetchall()
+            if len(user_rows) != 1:
+                return HistoricalWorkoutImportResult(False, (), backup_path)
+            telegram_user_id = int(user_rows[0]["telegram_user_id"])
+
+            if not backup_path.exists():
+                with sqlite3.connect(backup_path) as backup:
+                    connection.backup(backup)
+
+            strength_activities = (
+                ("back", "Спина", "lat_pulldown", "Верхний хват", (30.0, 35.0, 40.0)),
+                ("back", "Спина", "seated_cable_row", "Нижний хват", (25.0, 30.0, 35.0)),
+                ("arms", "Руки", "ez_bar_curl", "Поднятие грифа", (5.0, 15.0, 17.5)),
+                ("arms", "Руки", "triceps_pushdown", "Трицепс", (30.0, 35.0, 40.0)),
+            )
+            inserted_ids: list[int] = []
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                for offset, activity in enumerate(strength_activities):
+                    group_id, group_name, exercise_id, exercise_name, weights = activity
+                    completed_at = datetime(
+                        2026, 8, 23, 15, offset * 5, tzinfo=local_timezone
+                    ).astimezone(timezone.utc).isoformat(timespec="seconds")
+                    cursor = connection.execute(
+                        """
+                        INSERT INTO workouts (
+                            telegram_user_id, group_id, group_name, exercise_id,
+                            exercise_name, activity_type, sets_count, distance_km,
+                            completed_at
+                        ) VALUES (?, ?, ?, ?, ?, 'strength', 3, NULL, ?)
+                        """,
+                        (
+                            telegram_user_id,
+                            group_id,
+                            group_name,
+                            exercise_id,
+                            exercise_name,
+                            completed_at,
+                        ),
+                    )
+                    workout_id = int(cursor.lastrowid)
+                    inserted_ids.append(workout_id)
+                    connection.executemany(
+                        """
+                        INSERT INTO workout_sets (workout_id, set_number, reps, weight)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        [
+                            (workout_id, set_number, reps, weight)
+                            for set_number, (reps, weight) in enumerate(
+                                zip((12, 10, 8), weights, strict=True), start=1
+                            )
+                        ],
+                    )
+
+                cardio_time = datetime(
+                    2026, 8, 23, 15, 20, tzinfo=local_timezone
+                ).astimezone(timezone.utc).isoformat(timespec="seconds")
+                cursor = connection.execute(
+                    """
+                    INSERT INTO workouts (
+                        telegram_user_id, group_id, group_name, exercise_id,
+                        exercise_name, activity_type, sets_count, distance_km,
+                        completed_at
+                    ) VALUES (?, 'cardio', 'Кардио', 'treadmill_walking',
+                              'Ходьба на дорожке', 'distance', 0, 1.7, ?)
+                    """,
+                    (telegram_user_id, cardio_time),
+                )
+                inserted_ids.append(int(cursor.lastrowid))
+                connection.execute(
+                    "INSERT INTO data_migrations (name, applied_at) VALUES (?, ?)",
+                    (HISTORY_IMPORT_NAME, utc_now_iso()),
+                )
+                integrity = connection.execute("PRAGMA quick_check").fetchone()[0]
+                if integrity != "ok":
+                    raise RuntimeError(f"SQLite quick_check failed: {integrity}")
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+
+        return HistoricalWorkoutImportResult(
+            True, tuple(inserted_ids), backup_path
+        )
 
     def get_active_base_session(
         self, telegram_user_id: int
