@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -182,6 +183,33 @@ def test_strength_cardio_history_and_excel_export(tmp_path: Path) -> None:
 
     content = exporter_module.build_workout_export(database, 123, ZoneInfo("Europe/Moscow"))
     workbook = openpyxl.load_workbook(BytesIO(content), data_only=True)
-    assert workbook.sheetnames == ["Подходы", "Тренировки", "Кардио", "Базовые веса"]
-    assert workbook["Подходы"].max_row == 4
-    assert workbook["Кардио"]["E2"].value == 2.4
+    assert workbook.sheetnames == ["История"]
+
+    sheet = workbook["История"]
+    assert list(sheet.values) == [
+        ("Дата", "Упражнение", "1-й подход", "2-й подход", "3-й подход"),
+        (
+            datetime.fromisoformat(history[1].completed_at)
+            .astimezone(ZoneInfo("Europe/Moscow"))
+            .strftime("%d.%m.%Y"),
+            "Жим лёжа",
+            40,
+            45,
+            50,
+        ),
+        (
+            datetime.fromisoformat(history[0].completed_at)
+            .astimezone(ZoneInfo("Europe/Moscow"))
+            .strftime("%d.%m.%Y"),
+            "Ходьба на дорожке",
+            "2,4 км",
+            None,
+            None,
+        ),
+    ]
+    assert sheet["A2"].number_format == "@"
+    assert sheet.freeze_panes == "A2"
+    assert sheet.auto_filter.ref is None
+    assert len(sheet.tables) == 0
+    assert sheet["A2"].fill.fgColor.rgb == "FFFFFFFF"
+    assert sheet["A2"].font.color.rgb == "FF111827"
