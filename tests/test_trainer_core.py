@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
+import sqlite3
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -213,3 +214,83 @@ def test_strength_cardio_history_and_excel_export(tmp_path: Path) -> None:
     assert len(sheet.tables) == 0
     assert sheet["A2"].fill.fgColor.rgb == "FFFFFFFF"
     assert sheet["A2"].font.color.rgb == "FF111827"
+
+
+def test_selected_test_history_cleanup_is_exact_and_recoverable(tmp_path: Path) -> None:
+    database_module = load_trainer_module("database")
+    path = tmp_path / "workouts.sqlite3"
+    database = database_module.TrainerDatabase(path)
+
+    def save_strength(
+        exercise_id: str,
+        exercise_name: str,
+        weights: tuple[float, ...],
+        completed_at: str,
+    ) -> int:
+        workout_id = database.save_workout(
+            telegram_user_id=123,
+            username="tester",
+            full_name="Test User",
+            group_id="test",
+            group_name="Тест",
+            exercise_id=exercise_id,
+            exercise_name=exercise_name,
+            reps=(12, 10, 8)[: len(weights)],
+            weights=weights,
+            base_weight=weights[0],
+        )
+        with sqlite3.connect(path) as connection:
+            connection.execute(
+                "UPDATE workouts SET completed_at = ? WHERE id = ?",
+                (completed_at, workout_id),
+            )
+            connection.commit()
+        return workout_id
+
+    kept_real_id = save_strength(
+        "lat_pulldown",
+        "Тяга верхнего блока широким хватом",
+        (30, 35, 40),
+        "2026-08-24T12:12:00+00:00",
+    )
+    selected_ids = [
+        save_strength("lat_pulldown", "Верхний хват", (30, 35, 40), "2026-08-24T14:56:00+00:00"),
+        save_strength("lat_pulldown", "Верхний хват", (30, 35, 40), "2026-08-24T14:57:00+00:00"),
+        save_strength("lat_pulldown", "Верхний хват", (30, 35, 40), "2026-08-24T15:08:00+00:00"),
+        save_strength("seated_cable_row", "Нижний хват", (25, 30, 30), "2026-08-24T15:29:00+00:00"),
+        save_strength("lat_pulldown", "Верхний хват", (30, 35, 40), "2026-08-24T15:37:00+00:00"),
+        save_strength("seated_cable_row", "Нижний хват", (25, 30, 30), "2026-08-24T15:37:30+00:00"),
+        save_strength("alternating_dumbbell_curl", "Hammer", (10, 12, 14), "2026-08-24T15:38:00+00:00"),
+        save_strength("pec_deck", "Бабочка", (40, 45, 50), "2026-08-24T15:38:30+00:00"),
+        save_strength("lat_pulldown", "Верхний хват", (30, 35, 35), "2026-08-26T08:04:00+00:00"),
+    ]
+    kept_25_id = save_strength(
+        "lat_pulldown",
+        "Верхний хват",
+        (30, 35),
+        "2026-08-25T08:19:00+00:00",
+    )
+    database.save_active_base_session(123, ("lat_pulldown",))
+
+    result = database.cleanup_selected_test_history(ZoneInfo("Europe/Moscow"))
+
+    assert result.applied is True
+    assert result.removed_workout_ids == tuple(selected_ids)
+    assert result.backup_path.is_file()
+    assert database.get_active_base_session(123) is None
+
+    with sqlite3.connect(path) as connection:
+        remaining = connection.execute(
+            "SELECT id, exercise_name FROM workouts ORDER BY id"
+        ).fetchall()
+        integrity = connection.execute("PRAGMA quick_check").fetchone()[0]
+    assert remaining == [
+        (kept_real_id, "Верхний хват"),
+        (kept_25_id, "Верхний хват"),
+    ]
+    assert integrity == "ok"
+    assert database.get_profile(123, "lat_pulldown").last_weights == (30, 35)
+
+    repeated = database.cleanup_selected_test_history(ZoneInfo("Europe/Moscow"))
+    assert repeated.applied is False
+    assert repeated.removed_workout_ids == ()

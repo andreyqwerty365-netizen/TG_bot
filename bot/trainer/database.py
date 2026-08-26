@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Sequence
+from zoneinfo import ZoneInfo
 
 
 def utc_now_iso() -> str:
@@ -35,12 +37,42 @@ class WorkoutSummary:
     distance_km: float | None
 
 
+@dataclass(frozen=True, slots=True)
+class HistoryCleanupResult:
+    applied: bool
+    removed_workout_ids: tuple[int, ...]
+    backup_path: Path
+
+
+HISTORY_CLEANUP_NAME = "remove-selected-test-workouts-2026-08-26-v1"
+HISTORY_CLEANUP_BACKUP_NAME = "workouts-before-test-cleanup-20260826.sqlite3"
+CURRENT_EXERCISE_NAMES = {
+    "lat_pulldown": "Верхний хват",
+    "seated_cable_row": "Нижний хват",
+    "ez_bar_curl": "Поднятие грифа",
+    "alternating_dumbbell_curl": "Hammer",
+    "triceps_pushdown": "Трицепс",
+    "pec_deck": "Бабочка",
+    "treadmill_walking": "Ходьба на дорожке",
+}
+SELECTED_TEST_WORKOUTS = Counter(
+    {
+        ("24.08.2026", "Верхний хват", (30.0, 35.0, 40.0)): 4,
+        ("24.08.2026", "Нижний хват", (25.0, 30.0, 30.0)): 2,
+        ("24.08.2026", "Hammer", (10.0, 12.0, 14.0)): 1,
+        ("24.08.2026", "Бабочка", (40.0, 45.0, 50.0)): 1,
+        ("26.08.2026", "Верхний хват", (30.0, 35.0, 35.0)): 1,
+    }
+)
+
+
 class TrainerDatabase:
     def __init__(self, path: Path):
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._initialize()
+        self.cleanup_selected_test_history(ZoneInfo("Europe/Moscow"))
 
     def init(self) -> None:
         """Create or upgrade the workout schema. Safe to call repeatedly."""
@@ -114,12 +146,164 @@ class TrainerDatabase:
             updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS data_migrations (
+            name TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_workouts_user_date
             ON workouts(telegram_user_id, completed_at DESC);
         """
         with self._lock, self._connection() as connection:
             connection.executescript(schema)
             connection.commit()
+
+    def cleanup_selected_test_history(
+        self, local_timezone: ZoneInfo
+    ) -> HistoryCleanupResult:
+        backup_path = self.path.with_name(HISTORY_CLEANUP_BACKUP_NAME)
+        with self._lock, self._connection() as connection:
+            applied = connection.execute(
+                "SELECT 1 FROM data_migrations WHERE name = ?",
+                (HISTORY_CLEANUP_NAME,),
+            ).fetchone()
+            if applied is not None:
+                return HistoryCleanupResult(False, (), backup_path)
+
+            workout_rows = connection.execute(
+                """
+                SELECT id, telegram_user_id, completed_at, exercise_name
+                FROM workouts
+                WHERE activity_type = 'strength'
+                ORDER BY id
+                """
+            ).fetchall()
+            candidate_ids: list[int] = []
+            candidate_users: set[int] = set()
+            found = Counter()
+            for workout in workout_rows:
+                weights = tuple(
+                    float(row["weight"])
+                    for row in connection.execute(
+                        """
+                        SELECT weight FROM workout_sets
+                        WHERE workout_id = ? ORDER BY set_number
+                        """,
+                        (workout["id"],),
+                    ).fetchall()
+                )
+                local_date = (
+                    datetime.fromisoformat(workout["completed_at"])
+                    .astimezone(local_timezone)
+                    .strftime("%d.%m.%Y")
+                )
+                key = (local_date, workout["exercise_name"], weights)
+                if key in SELECTED_TEST_WORKOUTS:
+                    found[key] += 1
+                    candidate_ids.append(int(workout["id"]))
+                    candidate_users.add(int(workout["telegram_user_id"]))
+
+            if found != SELECTED_TEST_WORKOUTS:
+                return HistoryCleanupResult(False, (), backup_path)
+
+            if not backup_path.exists():
+                with sqlite3.connect(backup_path) as backup:
+                    connection.backup(backup)
+
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                placeholders = ",".join("?" for _ in candidate_ids)
+                connection.execute(
+                    f"DELETE FROM workouts WHERE id IN ({placeholders})",
+                    candidate_ids,
+                )
+
+                for exercise_id, exercise_name in CURRENT_EXERCISE_NAMES.items():
+                    connection.execute(
+                        "UPDATE workouts SET exercise_name = ? WHERE exercise_id = ?",
+                        (exercise_name, exercise_id),
+                    )
+                    connection.execute(
+                        "UPDATE exercise_profiles SET exercise_name = ? WHERE exercise_id = ?",
+                        (exercise_name, exercise_id),
+                    )
+
+                for telegram_user_id in candidate_users:
+                    connection.execute(
+                        "DELETE FROM active_base_sessions WHERE telegram_user_id = ?",
+                        (telegram_user_id,),
+                    )
+                    profiles = connection.execute(
+                        """
+                        SELECT exercise_id FROM exercise_profiles
+                        WHERE telegram_user_id = ?
+                        """,
+                        (telegram_user_id,),
+                    ).fetchall()
+                    for profile in profiles:
+                        latest = connection.execute(
+                            """
+                            SELECT id, group_id, group_name, exercise_name, completed_at
+                            FROM workouts
+                            WHERE telegram_user_id = ? AND exercise_id = ?
+                                  AND activity_type = 'strength'
+                            ORDER BY completed_at DESC, id DESC
+                            LIMIT 1
+                            """,
+                            (telegram_user_id, profile["exercise_id"]),
+                        ).fetchone()
+                        if latest is None:
+                            connection.execute(
+                                """
+                                DELETE FROM exercise_profiles
+                                WHERE telegram_user_id = ? AND exercise_id = ?
+                                """,
+                                (telegram_user_id, profile["exercise_id"]),
+                            )
+                            continue
+                        latest_weights = [
+                            float(row["weight"])
+                            for row in connection.execute(
+                                """
+                                SELECT weight FROM workout_sets
+                                WHERE workout_id = ? ORDER BY set_number
+                                """,
+                                (latest["id"],),
+                            ).fetchall()
+                        ]
+                        connection.execute(
+                            """
+                            UPDATE exercise_profiles
+                            SET group_id = ?, group_name = ?, exercise_name = ?,
+                                last_weights_json = ?, updated_at = ?
+                            WHERE telegram_user_id = ? AND exercise_id = ?
+                            """,
+                            (
+                                latest["group_id"],
+                                latest["group_name"],
+                                CURRENT_EXERCISE_NAMES.get(
+                                    profile["exercise_id"], latest["exercise_name"]
+                                ),
+                                json.dumps(latest_weights, ensure_ascii=False),
+                                latest["completed_at"],
+                                telegram_user_id,
+                                profile["exercise_id"],
+                            ),
+                        )
+
+                connection.execute(
+                    "INSERT INTO data_migrations (name, applied_at) VALUES (?, ?)",
+                    (HISTORY_CLEANUP_NAME, utc_now_iso()),
+                )
+                integrity = connection.execute("PRAGMA quick_check").fetchone()[0]
+                if integrity != "ok":
+                    raise RuntimeError(f"SQLite quick_check failed: {integrity}")
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+
+        return HistoryCleanupResult(True, tuple(candidate_ids), backup_path)
 
     def get_active_base_session(
         self, telegram_user_id: int
