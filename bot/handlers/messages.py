@@ -20,7 +20,7 @@ from ..services.organizer import (
     smart_capture,
 )
 from ..utils.date_utils import fmt_ru_date_or_time, local_to_utc
-from ..views import cancel_kb, main_menu, reminder_created_kb, reminder_entry_kb, settings_menu
+from ..views import cancel_kb, main_menu, reminder_created_kb, reminder_entry_kb, routine_settings_menu, routine_task_policy_menu, routine_task_shift_menu, settings_menu
 
 if TYPE_CHECKING:
     from ..application import BotApp
@@ -61,6 +61,32 @@ async def on_text(app: "BotApp", update: Update, context: ContextTypes.DEFAULT_T
     if state.mode and state.mode.startswith("trainer_"):
         if await app.trainer.handle_text(app, update, context):
             return
+
+    if state.mode == "waiting_routine_task_text":
+        app.set_mode(context, chat_id, "routine_add_shift", text=text)
+        await app.send_active(context, chat_id, "Для каких дней эта задача?", reply_markup=routine_task_shift_menu())
+        return
+    if state.mode == "waiting_routine_task_offset":
+        try:
+            minutes = int(text)
+        except ValueError:
+            minutes = -1
+        if not 0 <= minutes <= 1440:
+            await app.send_active(context, chat_id, "Введи число минут от 0 до 1440.", reply_markup=cancel_kb("routine:tasks"))
+            return
+        state.mode = "routine_add_policy"
+        state.payload["offset_minutes"] = minutes
+        await app.send_active(context, chat_id, "Повторять задачу в сводках?", reply_markup=routine_task_policy_menu())
+        return
+    if state.mode == "waiting_routine_wake_time":
+        if not is_valid_hhmm(text):
+            await app.send_active(context, chat_id, "Нужен формат HH:MM.", reply_markup=cancel_kb("routine:settings"))
+            return
+        app.db.set_shift_wake_time(chat_id, state.payload["shift_type"], text)
+        app.set_mode(context, chat_id, None)
+        routine = app.db.get_routine_settings(chat_id)
+        await app.send_active(context, chat_id, "✅ Время подъёма обновлено.", reply_markup=routine_settings_menu(routine.enabled, routine.digest_interval_hours, app.db.get_shift_wake_times(chat_id)))
+        return
 
     if state.mode == "waiting_import":
         await app.send_active(context, chat_id, "Я жду JSON-документ, а не текст.", reply_markup=main_menu())

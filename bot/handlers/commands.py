@@ -57,7 +57,8 @@ async def cmd_help(app: "BotApp", update: Update, context: ContextTypes.DEFAULT_
 
 
 async def cmd_today(app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await app.update_or_send_plan(context, update.effective_chat.id, build_today_plan(app.db, update.effective_chat.id))
+    chat_id = update.effective_chat.id
+    await app.send_active(context, chat_id, build_today_plan(app.db, chat_id), reply_markup=main_menu())
 
 
 async def cmd_next(app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

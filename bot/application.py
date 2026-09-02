@@ -16,6 +16,7 @@ from .db import Database
 from .handlers import callbacks, commands, messages
 from .services.organizer import build_last_screen, build_next_reminder_text, build_stats_text, build_today_plan, build_tomorrow_plan, cleanup_completed_reminders as archive_completed_reminders
 from .services.reminder_actions import ReminderService
+from .services.routines import digest_tasks, due_one_time_tasks, find_routine_day
 from .services.search_text import build_search_text, search_records
 from .state import ChatState, get_chat_state, set_mode
 from .trainer.catalog import ExerciseCatalog
@@ -42,6 +43,7 @@ from .views import (
     reminder_fire_kb,
     reminders_menu,
     reminders_archive_menu,
+    routine_checklist_kb,
     search_results_menu,
     settings_menu,
 )
@@ -216,6 +218,7 @@ class BotApp:
             ).fetchall()
         for row in rows:
             self.schedule_dayplan(app, int(row["chat_id"]), int(row["tz_offset_minutes"]), str(row["dayplan_time"]))
+        self.sync_routine_tick(app)
 
     def get_chat_state(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> ChatState:
         store: dict[int, ChatState] = context.application.bot_data[STATE_KEY]
@@ -227,14 +230,18 @@ class BotApp:
 
     async def send_active(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int, text: str, reply_markup=None) -> int:
         active_map: dict[int, int] = context.application.bot_data[ACTIVE_KEY]
-        old_message_id = active_map.get(chat_id)
+        old_message_id = active_map.get(chat_id) or self.db.get_active_message_id(chat_id)
         if old_message_id:
             try:
                 await context.bot.delete_message(chat_id, old_message_id)
             except Exception:
-                pass
+                try:
+                    await context.bot.edit_message_reply_markup(chat_id=chat_id, message_id=old_message_id, reply_markup=None)
+                except Exception:
+                    pass
         msg = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
         active_map[chat_id] = msg.message_id
+        self.db.set_active_message_id(chat_id, msg.message_id)
         return msg.message_id
 
     async def update_or_send_plan(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int, text: str) -> None:
@@ -307,6 +314,41 @@ class BotApp:
             job.schedule_removal()
         if settings.dayplan_enabled and settings.dayplan_time:
             self.schedule_dayplan(app, chat_id, settings.tz_offset_minutes, settings.dayplan_time)
+
+    def sync_routine_tick(self, app: Application) -> None:
+        for job in app.job_queue.get_jobs_by_name("routine:tick"):
+            job.schedule_removal()
+        if self.db.list_enabled_routine_chat_ids():
+            app.job_queue.run_repeating(self.routine_tick_job, interval=60, first=10, data={}, name="routine:tick")
+
+    async def routine_tick_job(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+        now = utc_now()
+        for chat_id in self.db.list_enabled_routine_chat_ids():
+            routine_day = find_routine_day(self.db, chat_id, now)
+            if routine_day is None:
+                continue
+            one_time = due_one_time_tasks(self.db, chat_id, now)
+            settings = self.db.get_routine_settings(chat_id)
+            elapsed_minutes = int((to_local(now, self.db.get_chat_settings(chat_id).tz_offset_minutes) - routine_day.wake_local).total_seconds() // 60)
+            interval_minutes = settings.digest_interval_hours * 60
+            delivery_key = None
+            repeating = []
+            if elapsed_minutes >= interval_minutes:
+                slot = elapsed_minutes // interval_minutes
+                delivery_key = f"digest:{routine_day.routine_date}:{slot}"
+                if not self.db.has_routine_delivery(chat_id, delivery_key):
+                    repeating = digest_tasks(self.db, chat_id, now)
+
+            tasks = one_time + repeating
+            if not tasks:
+                continue
+            heading = "📋 Осталось на сегодня:" if repeating else "🌅 Пора выполнить:"
+            text = heading + "\n" + "\n".join(f"{idx}. {task.text}" for idx, task in enumerate(tasks, 1))
+            await self.send_active(context, chat_id, text, reply_markup=routine_checklist_kb(tasks, routine_day.routine_date))
+            for task in one_time:
+                self.db.record_routine_delivery(chat_id, f"task:{routine_day.routine_date}:{task.id}")
+            if repeating and delivery_key:
+                self.db.record_routine_delivery(chat_id, delivery_key)
 
     async def fire_reminder_job(self, context: ContextTypes.DEFAULT_TYPE) -> None:
         chat_id = int(context.job.data["chat_id"])

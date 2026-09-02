@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -184,6 +184,75 @@ async def test_post_init_restores_pending_reminders_and_dayplan(tmp_path: Path):
     assert fake_application.job_queue.once_calls[0]["name"].startswith("reminder:")
     assert len(fake_application.job_queue.repeat_calls) == 1
     assert fake_application.job_queue.repeat_calls[0]["name"] == "dayplan:1"
+
+
+@pytest.mark.anyio
+async def test_send_active_persists_message_id_and_replaces_it_after_restart(tmp_path: Path):
+    db_path = tmp_path / "notes.db"
+    first = BotApp(Settings(bot_token="123:token", db_path=db_path))
+    first.db.init()
+    first_bot = SimpleNamespace(
+        delete_message=AsyncMock(),
+        edit_message_reply_markup=AsyncMock(),
+        send_message=AsyncMock(return_value=SimpleNamespace(message_id=41)),
+    )
+    first_context = SimpleNamespace(application=SimpleNamespace(bot_data={"active_message_id": {}}), bot=first_bot)
+
+    await first.send_active(first_context, 1, "Первое меню")
+
+    assert first.db.get_active_message_id(1) == 41
+
+    restarted = BotApp(Settings(bot_token="123:token", db_path=db_path))
+    restarted.db.init()
+    second_bot = SimpleNamespace(
+        delete_message=AsyncMock(),
+        edit_message_reply_markup=AsyncMock(),
+        send_message=AsyncMock(return_value=SimpleNamespace(message_id=42)),
+    )
+    second_context = SimpleNamespace(application=SimpleNamespace(bot_data={"active_message_id": {}}), bot=second_bot)
+
+    await restarted.send_active(second_context, 1, "Новое меню")
+
+    second_bot.delete_message.assert_awaited_once_with(1, 41)
+    assert restarted.db.get_active_message_id(1) == 42
+
+
+@pytest.mark.anyio
+async def test_post_init_starts_one_routine_tick_when_enabled(tmp_path: Path):
+    bot_app = BotApp(Settings(bot_token="123:token", db_path=tmp_path / "notes.db"))
+    bot_app.db.init()
+    bot_app.db.set_routine_enabled(1, True)
+    fake_application = FakeApplication()
+
+    await bot_app.post_init(fake_application)
+
+    routine_jobs = [call for call in fake_application.job_queue.repeat_calls if call["name"] == "routine:tick"]
+    assert len(routine_jobs) == 1
+
+
+@pytest.mark.anyio
+async def test_routine_tick_combines_simultaneous_task_and_digest(tmp_path: Path, monkeypatch):
+    bot_app = BotApp(Settings(bot_token="123:token", db_path=tmp_path / "notes.db"))
+    bot_app.db.init()
+    bot_app.db.set_routine_enabled(1, True)
+    bot_app.db.set_shift_day(1, date(2026, 9, 2), "day")
+    bot_app.db.add_routine_task(1, "Разовая", "all", 180, False, 960)
+    bot_app.db.add_routine_task(1, "До выполнения", "all", 0, True, 960)
+    monkeypatch.setattr("bot.application.utc_now", lambda: datetime(2026, 9, 2, 10, 0, tzinfo=UTC))
+    bot = SimpleNamespace(
+        delete_message=AsyncMock(),
+        edit_message_reply_markup=AsyncMock(),
+        send_message=AsyncMock(return_value=SimpleNamespace(message_id=50)),
+    )
+    application = SimpleNamespace(bot_data={"active_message_id": {}}, job_queue=FakeJobQueue())
+    context = SimpleNamespace(application=application, bot=bot, job=SimpleNamespace(data={}))
+
+    await bot_app.routine_tick_job(context)
+
+    bot.send_message.assert_awaited_once()
+    sent_text = bot.send_message.await_args.args[1]
+    assert "Разовая" in sent_text
+    assert "До выполнения" in sent_text
 
 
 @pytest.mark.anyio

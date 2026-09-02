@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from bot.models import Note, Reminder
-from bot.views import data_menu, notes_menu, reminder_created_kb, reminders_menu, search_results_menu, settings_menu
+from bot.views import additional_tools_menu, data_menu, main_menu, notes_menu, reminder_created_kb, reminders_menu, routine_menu, routine_task_policy_menu, search_results_menu, settings_menu
 
 
 def _callbacks(markup):
@@ -37,3 +37,29 @@ def test_settings_menu_exposes_backup_actions():
     data_callbacks = _callbacks(data_menu())
     assert "settings:export" in data_callbacks
     assert "settings:import" in data_callbacks
+
+
+def test_main_menu_keeps_rare_tools_one_level_deeper():
+    main_callbacks = _callbacks(main_menu())
+
+    assert "menu:routine" in main_callbacks
+    assert "quick:today" in main_callbacks
+    assert "quick:last" not in main_callbacks
+    assert "quick:search" not in main_callbacks
+    assert "quick:next" not in main_callbacks
+
+    settings_callbacks = _callbacks(settings_menu(False))
+    assert "settings:additional_tools" in settings_callbacks
+
+    tools_callbacks = _callbacks(additional_tools_menu())
+    assert {"quick:last", "quick:search", "quick:next"} <= set(tools_callbacks)
+    assert "menu:settings" in tools_callbacks
+
+
+def test_routine_menu_exposes_schedule_tasks_and_settings():
+    callbacks = _callbacks(routine_menu(False))
+    assert {"routine:today", "routine:schedule", "routine:tasks", "routine:settings"} <= set(callbacks)
+    assert "routine:toggle" in callbacks
+
+    policy_callbacks = _callbacks(routine_task_policy_menu())
+    assert {"routine:add_policy:once", "routine:add_policy:digest"} <= set(policy_callbacks)

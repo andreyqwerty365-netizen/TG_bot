@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import logging
+from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
 from telegram import Update
@@ -8,12 +9,16 @@ from telegram.ext import ContextTypes
 
 from .commands import send_export
 from ..services.organizer import build_last_screen, build_overdue_reminders_text, build_stats_text, build_today_plan
+from ..services.routines import find_routine_day, pending_tasks
+from ..utils.date_utils import to_local, utc_now
 from ..views import (
     INFO,
     MAIN,
     NOTES,
     REMINDERS,
+    ROUTINE,
     SETTINGS,
+    additional_tools_menu,
     cancel_kb,
     data_menu,
     dayplan_menu,
@@ -29,6 +34,16 @@ from ..views import (
     reminder_entry_kb,
     reminder_repeat_menu,
     reminders_menu,
+    routine_checklist_kb,
+    routine_interval_menu,
+    routine_menu,
+    routine_schedule_menu,
+    routine_settings_menu,
+    routine_shift_choice_menu,
+    routine_task_offset_menu,
+    routine_task_policy_menu,
+    routine_task_shift_menu,
+    routine_tasks_menu,
     settings_menu,
 )
 
@@ -43,11 +58,17 @@ async def on_button(app: "BotApp", update: Update, context: ContextTypes.DEFAULT
     query = update.callback_query
     assert query and update.effective_chat
     data = query.data or ""
+    chat_id = update.effective_chat.id
+    current_message_id = app.db.get_active_message_id(chat_id)
+    callback_message = getattr(query, "message", None)
+    callback_message_id = getattr(callback_message, "message_id", None)
+    if current_message_id is not None and callback_message_id is not None and callback_message_id != current_message_id:
+        await query.answer("Это меню устарело. Используй последнее сообщение бота.", show_alert=True)
+        return
     if data == "menu:trainer" or data.startswith("trainer:"):
         await app.trainer.handle_callback(app, update, context)
         return
     await query.answer()
-    chat_id = update.effective_chat.id
     state = app.get_chat_state(context, chat_id)
 
     if data.startswith("menu:"):
@@ -64,8 +85,105 @@ async def on_button(app: "BotApp", update: Update, context: ContextTypes.DEFAULT
         elif state.menu == SETTINGS:
             settings = app.db.get_chat_settings(chat_id)
             await query.edit_message_text("⚙️ Настройки", reply_markup=settings_menu(settings.dayplan_enabled))
+        elif state.menu == ROUTINE:
+            routine = app.db.get_routine_settings(chat_id)
+            await query.edit_message_text("🧭 Рутина", reply_markup=routine_menu(routine.enabled))
         elif state.menu == INFO:
             await query.edit_message_text("ℹ️ Информация", reply_markup=info_menu())
+        return
+
+    if data == "routine:today":
+        routine_day = find_routine_day(app.db, chat_id, utc_now())
+        if routine_day is None:
+            await query.edit_message_text("На текущий цикл смена не задана.", reply_markup=routine_menu(app.db.get_routine_settings(chat_id).enabled))
+            return
+        tasks = pending_tasks(app.db, chat_id, utc_now())
+        text = "📋 Осталось на сегодня:\n" + ("\n".join(f"{i}. {task.text}" for i, task in enumerate(tasks, 1)) if tasks else "Всё выполнено или актуальных задач нет.")
+        await query.edit_message_text(text, reply_markup=routine_checklist_kb(tasks, routine_day.routine_date))
+        return
+    if data == "routine:schedule":
+        today = to_local(utc_now(), app.db.get_chat_settings(chat_id).tz_offset_minutes).date()
+        days = app.db.list_shift_days(chat_id, today, 7)
+        await query.edit_message_text("🗓 График на 7 дней", reply_markup=routine_schedule_menu(today, days))
+        return
+    if data.startswith("routine:choose_shift:"):
+        routine_date = date.fromisoformat(data.rsplit(":", 1)[1])
+        await query.edit_message_text(f"Выбери тип дня для {routine_date:%d.%m}", reply_markup=routine_shift_choice_menu(routine_date))
+        return
+    if data.startswith("routine:set_shift:"):
+        _, _, raw_date, shift_type = data.split(":")
+        app.db.set_shift_day(chat_id, date.fromisoformat(raw_date), shift_type)
+        await query.edit_message_text("✅ График обновлён.", reply_markup=routine_menu(app.db.get_routine_settings(chat_id).enabled))
+        return
+    if data == "routine:tasks":
+        tasks = app.db.list_routine_tasks(chat_id)
+        text = "🧩 Задачи\n" + ("\n".join(f"• {task.text}" for task in tasks) if tasks else "Пока нет задач.")
+        await query.edit_message_text(text, reply_markup=routine_tasks_menu(tasks))
+        return
+    if data == "routine:add":
+        app.set_mode(context, chat_id, "waiting_routine_task_text")
+        await query.edit_message_text("Напиши название задачи.", reply_markup=cancel_kb("routine:tasks"))
+        return
+    if data.startswith("routine:add_shift:"):
+        shift_type = data.rsplit(":", 1)[1]
+        state.mode = "routine_add_offset"
+        state.payload["shift_type"] = shift_type
+        await query.edit_message_text("Когда напомнить относительно подъёма?", reply_markup=routine_task_offset_menu())
+        return
+    if data.startswith("routine:add_offset:"):
+        value = data.rsplit(":", 1)[1]
+        if value == "custom":
+            state.mode = "waiting_routine_task_offset"
+            await query.edit_message_text("Через сколько минут после подъёма напомнить?", reply_markup=cancel_kb("routine:tasks"))
+            return
+        state.mode = "routine_add_policy"
+        state.payload["offset_minutes"] = int(value)
+        await query.edit_message_text("Повторять задачу в сводках?", reply_markup=routine_task_policy_menu())
+        return
+    if data.startswith("routine:add_policy:"):
+        repeat = data.rsplit(":", 1)[1] == "digest"
+        app.db.add_routine_task(chat_id, state.payload["text"], state.payload["shift_type"], int(state.payload["offset_minutes"]), repeat, 960)
+        app.set_mode(context, chat_id, None)
+        await query.edit_message_text("✅ Задача добавлена.", reply_markup=routine_tasks_menu(app.db.list_routine_tasks(chat_id)))
+        return
+    if data.startswith("routine:disable:"):
+        app.db.set_routine_task_active(chat_id, int(data.rsplit(":", 1)[1]), False)
+        await query.edit_message_text("✅ Задача отключена.", reply_markup=routine_tasks_menu(app.db.list_routine_tasks(chat_id)))
+        return
+    if data.startswith("routine:done_all:"):
+        routine_date = date.fromisoformat(data.rsplit(":", 1)[1])
+        for task in app.db.list_routine_tasks(chat_id):
+            app.db.set_routine_task_status(chat_id, task.id, routine_date, "done")
+        await query.edit_message_text("✅ Все задачи отмечены.", reply_markup=routine_menu(app.db.get_routine_settings(chat_id).enabled))
+        return
+    if data.startswith("routine:done:"):
+        _, _, task_id, raw_date = data.split(":")
+        app.db.set_routine_task_status(chat_id, int(task_id), date.fromisoformat(raw_date), "done")
+        await query.edit_message_text("✅ Выполнено.", reply_markup=routine_menu(app.db.get_routine_settings(chat_id).enabled))
+        return
+    if data == "routine:toggle":
+        routine = app.db.get_routine_settings(chat_id)
+        app.db.set_routine_enabled(chat_id, not routine.enabled)
+        app.sync_routine_tick(context.application)
+        updated = app.db.get_routine_settings(chat_id)
+        await query.edit_message_text("⚙️ Настройки рутины", reply_markup=routine_settings_menu(updated.enabled, updated.digest_interval_hours, app.db.get_shift_wake_times(chat_id)))
+        return
+    if data == "routine:settings":
+        routine = app.db.get_routine_settings(chat_id)
+        await query.edit_message_text("⚙️ Настройки рутины", reply_markup=routine_settings_menu(routine.enabled, routine.digest_interval_hours, app.db.get_shift_wake_times(chat_id)))
+        return
+    if data == "routine:interval":
+        await query.edit_message_text("Интервал сводок", reply_markup=routine_interval_menu())
+        return
+    if data.startswith("routine:set_interval:"):
+        app.db.set_routine_digest_interval(chat_id, int(data.rsplit(":", 1)[1]))
+        routine = app.db.get_routine_settings(chat_id)
+        await query.edit_message_text("✅ Интервал обновлён.", reply_markup=routine_settings_menu(routine.enabled, routine.digest_interval_hours, app.db.get_shift_wake_times(chat_id)))
+        return
+    if data.startswith("routine:wake:"):
+        shift_type = data.rsplit(":", 1)[1]
+        app.set_mode(context, chat_id, "waiting_routine_wake_time", shift_type=shift_type)
+        await query.edit_message_text("Пришли время подъёма в формате HH:MM.", reply_markup=cancel_kb("routine:settings"))
         return
 
     if data == "quick:new":
@@ -76,7 +194,7 @@ async def on_button(app: "BotApp", update: Update, context: ContextTypes.DEFAULT
         )
         return
     if data == "quick:today":
-        await app.update_or_send_plan(context, chat_id, build_today_plan(app.db, chat_id))
+        await query.edit_message_text(build_today_plan(app.db, chat_id), reply_markup=main_menu())
         return
     if data == "quick:next":
         await query.edit_message_text(app.next_reminder_screen(chat_id), reply_markup=main_menu())
@@ -308,6 +426,9 @@ async def on_button(app: "BotApp", update: Update, context: ContextTypes.DEFAULT
     if data == "settings:dayplan_menu":
         settings = app.db.get_chat_settings(chat_id)
         await query.edit_message_text("Настройки плана дня", reply_markup=dayplan_menu(settings.dayplan_enabled))
+        return
+    if data == "settings:additional_tools":
+        await query.edit_message_text("🧰 Дополнительные разделы", reply_markup=additional_tools_menu())
         return
     if data == "settings:dayplan_toggle":
         await app.toggle_dayplan(query, context, chat_id)

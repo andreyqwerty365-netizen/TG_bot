@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 
 @dataclass(slots=True)
@@ -31,3 +31,29 @@ class ChatSettingsRecord:
     tz_offset_minutes: int
     dayplan_enabled: bool
     dayplan_time: str | None
+
+
+@dataclass(slots=True)
+class RoutineSettings:
+    chat_id: int
+    enabled: bool
+    digest_interval_hours: int
+
+
+@dataclass(slots=True)
+class ShiftDay:
+    chat_id: int
+    routine_date: date
+    shift_type: str
+
+
+@dataclass(slots=True)
+class RoutineTask:
+    id: int
+    chat_id: int
+    text: str
+    shift_type: str
+    offset_minutes: int
+    repeat_in_digest: bool
+    expires_after_minutes: int
+    is_active: bool

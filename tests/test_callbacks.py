@@ -10,6 +10,7 @@ import pytest
 from bot.application import ACTIVE_KEY, PLAN_KEY, STATE_KEY, BotApp
 from bot.config import Settings
 from bot.handlers.callbacks import on_button
+from bot.handlers.messages import on_text
 
 
 class FakeJob:
@@ -67,6 +68,80 @@ async def press(app: BotApp, context, data: str):
     await on_button(app, update, context)
     query.answer.assert_awaited_once()
     return query
+
+
+@pytest.mark.anyio
+async def test_stale_menu_callback_is_rejected_without_execution(tmp_path: Path):
+    app, context = build_runtime(tmp_path)
+    note_id = app.db.add_note(1, "Не архивировать")
+    app.db.set_active_message_id(1, 200)
+    query = SimpleNamespace(
+        data=f"notes:archive:{note_id}",
+        message=SimpleNamespace(message_id=199),
+        answer=AsyncMock(),
+        edit_message_text=AsyncMock(),
+        edit_message_reply_markup=AsyncMock(),
+    )
+    update = SimpleNamespace(
+        callback_query=query,
+        effective_chat=SimpleNamespace(id=1),
+        effective_user=SimpleNamespace(id=1),
+    )
+
+    await on_button(app, update, context)
+
+    query.answer.assert_awaited_once_with(
+        "Это меню устарело. Используй последнее сообщение бота.",
+        show_alert=True,
+    )
+    query.edit_message_text.assert_not_awaited()
+    assert app.db.get_note(1, note_id).is_archived is False
+
+
+@pytest.mark.anyio
+async def test_routine_schedule_and_task_constructor(tmp_path: Path):
+    app, context = build_runtime(tmp_path)
+
+    await press(app, context, "routine:set_shift:2026-09-02:night")
+    assert app.db.get_shift_day(1, datetime(2026, 9, 2).date()).shift_type == "night"
+
+    await press(app, context, "routine:add")
+    assert app.get_chat_state(context, 1).mode == "waiting_routine_task_text"
+
+    update = SimpleNamespace(
+        effective_chat=SimpleNamespace(id=1),
+        message=SimpleNamespace(text="Выпить стакан воды"),
+    )
+    await on_text(app, update, context)
+    assert app.get_chat_state(context, 1).mode == "routine_add_shift"
+
+    await press(app, context, "routine:add_shift:all")
+    await press(app, context, "routine:add_offset:0")
+    await press(app, context, "routine:add_policy:once")
+
+    task = app.db.list_routine_tasks(1)[0]
+    assert task.text == "Выпить стакан воды"
+    assert task.repeat_in_digest is False
+
+
+@pytest.mark.anyio
+async def test_routine_done_callback_marks_current_routine_day(tmp_path: Path):
+    app, context = build_runtime(tmp_path)
+    task_id = app.db.add_routine_task(1, "Задача", "all", 0, True, 960)
+
+    await press(app, context, f"routine:done:{task_id}:2026-09-02")
+
+    assert app.db.get_routine_task_statuses(1, datetime(2026, 9, 2).date())[task_id] == "done"
+
+
+@pytest.mark.anyio
+async def test_today_button_reuses_the_current_menu_message(tmp_path: Path):
+    app, context = build_runtime(tmp_path)
+
+    query = await press(app, context, "quick:today")
+
+    query.edit_message_text.assert_awaited_once()
+    context.bot.send_message.assert_not_awaited()
 
 
 @pytest.mark.anyio

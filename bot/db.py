@@ -7,7 +7,7 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from .models import ChatSettingsRecord, Note, Reminder
+from .models import ChatSettingsRecord, Note, Reminder, RoutineSettings, RoutineTask, ShiftDay
 from .utils.date_utils import iso_utc, parse_iso_utc, utc_now
 
 
@@ -59,7 +59,51 @@ class Database:
                     chat_id INTEGER PRIMARY KEY,
                     tz_offset_minutes INTEGER NOT NULL DEFAULT 0,
                     dayplan_enabled INTEGER NOT NULL DEFAULT 0,
-                    dayplan_time TEXT
+                    dayplan_time TEXT,
+                    active_message_id INTEGER
+                );
+
+                CREATE TABLE IF NOT EXISTS routine_settings (
+                    chat_id INTEGER PRIMARY KEY,
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    digest_interval_hours INTEGER NOT NULL DEFAULT 3
+                );
+                CREATE TABLE IF NOT EXISTS shift_templates (
+                    chat_id INTEGER NOT NULL,
+                    shift_type TEXT NOT NULL CHECK(shift_type IN ('day', 'night', 'off')),
+                    wake_time TEXT NOT NULL,
+                    PRIMARY KEY(chat_id, shift_type)
+                );
+                CREATE TABLE IF NOT EXISTS shift_schedule (
+                    chat_id INTEGER NOT NULL,
+                    routine_date TEXT NOT NULL,
+                    shift_type TEXT NOT NULL CHECK(shift_type IN ('day', 'night', 'off')),
+                    PRIMARY KEY(chat_id, routine_date)
+                );
+                CREATE TABLE IF NOT EXISTS routine_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER NOT NULL,
+                    text TEXT NOT NULL,
+                    shift_type TEXT NOT NULL CHECK(shift_type IN ('all', 'day', 'night', 'off')),
+                    offset_minutes INTEGER NOT NULL,
+                    repeat_in_digest INTEGER NOT NULL DEFAULT 0,
+                    expires_after_minutes INTEGER NOT NULL DEFAULT 960,
+                    is_active INTEGER NOT NULL DEFAULT 1
+                );
+                CREATE TABLE IF NOT EXISTS routine_task_status (
+                    chat_id INTEGER NOT NULL,
+                    task_id INTEGER NOT NULL,
+                    routine_date TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('done', 'skipped')),
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(chat_id, task_id, routine_date),
+                    FOREIGN KEY(task_id) REFERENCES routine_tasks(id) ON DELETE CASCADE
+                );
+                CREATE TABLE IF NOT EXISTS routine_deliveries (
+                    chat_id INTEGER NOT NULL,
+                    delivery_key TEXT NOT NULL,
+                    delivered_at TEXT NOT NULL,
+                    PRIMARY KEY(chat_id, delivery_key)
                 );
                 """
             )
@@ -73,6 +117,10 @@ class Database:
                     ON reminders(chat_id, is_archived, remind_at ASC);
                 CREATE INDEX IF NOT EXISTS idx_reminders_active_lookup
                     ON reminders(is_archived, done_at, remind_at ASC);
+                CREATE INDEX IF NOT EXISTS idx_routine_tasks_chat_active
+                    ON routine_tasks(chat_id, is_active, shift_type);
+                CREATE INDEX IF NOT EXISTS idx_shift_schedule_chat_date
+                    ON shift_schedule(chat_id, routine_date);
                 CREATE INDEX IF NOT EXISTS idx_notes_chat_text
                     ON notes(chat_id, text);
                 CREATE INDEX IF NOT EXISTS idx_reminders_chat_text
@@ -91,6 +139,7 @@ class Database:
             ("reminders", "created_at TEXT"),
             ("chat_settings", "dayplan_enabled INTEGER NOT NULL DEFAULT 0"),
             ("chat_settings", "dayplan_time TEXT"),
+            ("chat_settings", "active_message_id INTEGER"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {coldef}")
@@ -182,6 +231,147 @@ class Database:
                 """,
                 (chat_id, chat_id, self.default_tz_offset_minutes, 1 if enabled else 0, hhmm),
             )
+
+    def get_active_message_id(self, chat_id: int) -> int | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT active_message_id FROM chat_settings WHERE chat_id=?",
+                (chat_id,),
+            ).fetchone()
+        if row is None or row["active_message_id"] is None:
+            return None
+        return int(row["active_message_id"])
+
+    def set_active_message_id(self, chat_id: int, message_id: int | None) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO chat_settings(chat_id, tz_offset_minutes, active_message_id)
+                VALUES (?, COALESCE((SELECT tz_offset_minutes FROM chat_settings WHERE chat_id=?), ?), ?)
+                ON CONFLICT(chat_id) DO UPDATE SET active_message_id=excluded.active_message_id
+                """,
+                (chat_id, chat_id, self.default_tz_offset_minutes, message_id),
+            )
+
+    def ensure_routine_profile(self, chat_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute("INSERT OR IGNORE INTO routine_settings(chat_id) VALUES (?)", (chat_id,))
+            for shift_type, wake_time in (("day", "07:00"), ("night", "19:00"), ("off", "09:00")):
+                conn.execute("INSERT OR IGNORE INTO shift_templates VALUES (?, ?, ?)", (chat_id, shift_type, wake_time))
+
+    def get_routine_settings(self, chat_id: int) -> RoutineSettings:
+        self.ensure_routine_profile(chat_id)
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM routine_settings WHERE chat_id=?", (chat_id,)).fetchone()
+        return RoutineSettings(int(row["chat_id"]), bool(row["enabled"]), int(row["digest_interval_hours"]))
+
+    def set_routine_enabled(self, chat_id: int, enabled: bool) -> None:
+        self.ensure_routine_profile(chat_id)
+        with self.connect() as conn:
+            conn.execute("UPDATE routine_settings SET enabled=? WHERE chat_id=?", (int(enabled), chat_id))
+
+    def set_routine_digest_interval(self, chat_id: int, hours: int) -> None:
+        if hours not in {2, 3, 4}:
+            raise ValueError("Digest interval must be 2, 3, or 4 hours")
+        self.ensure_routine_profile(chat_id)
+        with self.connect() as conn:
+            conn.execute("UPDATE routine_settings SET digest_interval_hours=? WHERE chat_id=?", (hours, chat_id))
+
+    def list_enabled_routine_chat_ids(self) -> list[int]:
+        with self.connect() as conn:
+            rows = conn.execute("SELECT chat_id FROM routine_settings WHERE enabled=1").fetchall()
+        return [int(row["chat_id"]) for row in rows]
+
+    def get_shift_wake_times(self, chat_id: int) -> dict[str, str]:
+        self.ensure_routine_profile(chat_id)
+        with self.connect() as conn:
+            rows = conn.execute("SELECT shift_type, wake_time FROM shift_templates WHERE chat_id=?", (chat_id,)).fetchall()
+        return {str(row["shift_type"]): str(row["wake_time"]) for row in rows}
+
+    def set_shift_wake_time(self, chat_id: int, shift_type: str, wake_time: str) -> None:
+        if shift_type not in {"day", "night", "off"}:
+            raise ValueError("Unknown shift type")
+        self.ensure_routine_profile(chat_id)
+        with self.connect() as conn:
+            conn.execute("UPDATE shift_templates SET wake_time=? WHERE chat_id=? AND shift_type=?", (wake_time, chat_id, shift_type))
+
+    def set_shift_day(self, chat_id: int, routine_date, shift_type: str) -> None:
+        if shift_type not in {"day", "night", "off"}:
+            raise ValueError("Unknown shift type")
+        self.ensure_routine_profile(chat_id)
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO shift_schedule VALUES (?, ?, ?) ON CONFLICT(chat_id, routine_date) DO UPDATE SET shift_type=excluded.shift_type",
+                (chat_id, routine_date.isoformat(), shift_type),
+            )
+
+    def get_shift_day(self, chat_id: int, routine_date) -> ShiftDay | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM shift_schedule WHERE chat_id=? AND routine_date=?", (chat_id, routine_date.isoformat())).fetchone()
+        if row is None:
+            return None
+        from datetime import date
+        return ShiftDay(int(row["chat_id"]), date.fromisoformat(row["routine_date"]), str(row["shift_type"]))
+
+    def list_shift_days(self, chat_id: int, start_date, days: int) -> list[ShiftDay]:
+        from datetime import date, timedelta
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM shift_schedule WHERE chat_id=? AND routine_date>=? AND routine_date<? ORDER BY routine_date",
+                (chat_id, start_date.isoformat(), (start_date + timedelta(days=days)).isoformat()),
+            ).fetchall()
+        return [ShiftDay(int(r["chat_id"]), date.fromisoformat(r["routine_date"]), str(r["shift_type"])) for r in rows]
+
+    def add_routine_task(self, chat_id: int, text: str, shift_type: str, offset_minutes: int, repeat_in_digest: bool, expires_after_minutes: int) -> int:
+        if shift_type not in {"all", "day", "night", "off"}:
+            raise ValueError("Unknown shift type")
+        with self.connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO routine_tasks(chat_id,text,shift_type,offset_minutes,repeat_in_digest,expires_after_minutes) VALUES (?,?,?,?,?,?)",
+                (chat_id, text.strip(), shift_type, offset_minutes, int(repeat_in_digest), expires_after_minutes),
+            )
+            return int(cur.lastrowid)
+
+    def list_routine_tasks(self, chat_id: int, shift_type: str | None = None, active_only: bool = True) -> list[RoutineTask]:
+        sql, params = "SELECT * FROM routine_tasks WHERE chat_id=?", [chat_id]
+        if active_only:
+            sql += " AND is_active=1"
+        if shift_type is not None:
+            sql += " AND shift_type IN ('all', ?)"
+            params.append(shift_type)
+        sql += " ORDER BY offset_minutes, id"
+        with self.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [RoutineTask(int(r["id"]), int(r["chat_id"]), str(r["text"]), str(r["shift_type"]), int(r["offset_minutes"]), bool(r["repeat_in_digest"]), int(r["expires_after_minutes"]), bool(r["is_active"])) for r in rows]
+
+    def set_routine_task_active(self, chat_id: int, task_id: int, active: bool) -> bool:
+        with self.connect() as conn:
+            cur = conn.execute("UPDATE routine_tasks SET is_active=? WHERE chat_id=? AND id=?", (int(active), chat_id, task_id))
+            return cur.rowcount > 0
+
+    def set_routine_task_status(self, chat_id: int, task_id: int, routine_date, status: str) -> None:
+        if status not in {"done", "skipped"}:
+            raise ValueError("Unknown routine task status")
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO routine_task_status VALUES (?,?,?,?,?) ON CONFLICT(chat_id,task_id,routine_date) DO UPDATE SET status=excluded.status,updated_at=excluded.updated_at",
+                (chat_id, task_id, routine_date.isoformat(), status, iso_utc(utc_now())),
+            )
+
+    def get_routine_task_statuses(self, chat_id: int, routine_date) -> dict[int, str]:
+        with self.connect() as conn:
+            rows = conn.execute("SELECT task_id,status FROM routine_task_status WHERE chat_id=? AND routine_date=?", (chat_id, routine_date.isoformat())).fetchall()
+        return {int(row["task_id"]): str(row["status"]) for row in rows}
+
+    def has_routine_delivery(self, chat_id: int, delivery_key: str) -> bool:
+        with self.connect() as conn:
+            row = conn.execute("SELECT 1 FROM routine_deliveries WHERE chat_id=? AND delivery_key=?", (chat_id, delivery_key)).fetchone()
+        return row is not None
+
+    def record_routine_delivery(self, chat_id: int, delivery_key: str) -> bool:
+        with self.connect() as conn:
+            cur = conn.execute("INSERT OR IGNORE INTO routine_deliveries VALUES (?,?,?)", (chat_id, delivery_key, iso_utc(utc_now())))
+            return cur.rowcount > 0
 
     def add_note(self, chat_id: int, text: str, created_at=None) -> int:
         created_at_value = iso_utc(created_at or utc_now())

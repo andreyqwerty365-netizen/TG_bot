@@ -2,7 +2,7 @@
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from .models import Note, Reminder
+from .models import Note, Reminder, RoutineTask, ShiftDay
 from .utils.date_utils import fmt_ru_date_or_time
 
 
@@ -10,6 +10,7 @@ MAIN = "main"
 NOTES = "notes"
 REMINDERS = "reminders"
 SETTINGS = "settings"
+ROUTINE = "routine"
 INFO = "info"
 PAGE_SIZE = 10
 
@@ -24,17 +25,13 @@ def main_menu() -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("➕ Записать", callback_data="quick:new")],
             [InlineKeyboardButton("🏋️ Тренер", callback_data="menu:trainer")],
+            [InlineKeyboardButton("🧭 Рутина", callback_data="menu:routine")],
             [
                 InlineKeyboardButton("📝 Заметки", callback_data="menu:notes"),
                 InlineKeyboardButton("⏰ Напоминания", callback_data="menu:reminders"),
             ],
             [
                 InlineKeyboardButton("📅 Сегодня", callback_data="quick:today"),
-                InlineKeyboardButton("📌 Ближайшее", callback_data="quick:next"),
-            ],
-            [
-                InlineKeyboardButton("🧾 Последнее", callback_data="quick:last"),
-                InlineKeyboardButton("🔎 Поиск", callback_data="quick:search"),
             ],
             [InlineKeyboardButton("⚙️ Настройки", callback_data="menu:settings")],
         ]
@@ -156,11 +153,131 @@ def settings_menu(dayplan_enabled: bool) -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("🕒 Таймзона", callback_data="settings:tz")],
             [InlineKeyboardButton(title, callback_data="settings:dayplan_menu")],
+            [InlineKeyboardButton("🧰 Дополнительные разделы", callback_data="settings:additional_tools")],
             [InlineKeyboardButton("💾 Резервная копия", callback_data="settings:data_menu")],
             [InlineKeyboardButton("📊 Статистика", callback_data="settings:stats")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="menu:main")],
         ]
     )
+
+
+def additional_tools_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🧾 Последнее", callback_data="quick:last")],
+            [InlineKeyboardButton("🔎 Поиск", callback_data="quick:search")],
+            [InlineKeyboardButton("📌 Ближайшее", callback_data="quick:next")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="menu:settings")],
+        ]
+    )
+
+
+def routine_menu(enabled: bool) -> InlineKeyboardMarkup:
+    toggle = "🔕 Выключить" if enabled else "🔔 Включить"
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("📋 Сегодня", callback_data="routine:today")],
+            [InlineKeyboardButton("🗓 График смен", callback_data="routine:schedule")],
+            [InlineKeyboardButton("🧩 Задачи", callback_data="routine:tasks")],
+            [InlineKeyboardButton("⚙️ Настройки", callback_data="routine:settings")],
+            [InlineKeyboardButton(toggle, callback_data="routine:toggle")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="menu:main")],
+        ]
+    )
+
+
+def routine_schedule_menu(start_date, shift_days: list[ShiftDay]) -> InlineKeyboardMarkup:
+    from datetime import timedelta
+    labels = {"day": "☀️ День", "night": "🌙 Ночь", "off": "🏠 Выходной"}
+    configured = {item.routine_date: item.shift_type for item in shift_days}
+    rows = []
+    for offset in range(7):
+        value = start_date + timedelta(days=offset)
+        suffix = labels.get(configured.get(value), "➕ Не задано")
+        rows.append([InlineKeyboardButton(f"{value:%d.%m} · {suffix}", callback_data=f"routine:choose_shift:{value}")])
+    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="menu:routine")])
+    return InlineKeyboardMarkup(rows)
+
+
+def routine_shift_choice_menu(routine_date) -> InlineKeyboardMarkup:
+    value = routine_date.isoformat()
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("☀️ Дневная", callback_data=f"routine:set_shift:{value}:day")],
+            [InlineKeyboardButton("🌙 Ночная", callback_data=f"routine:set_shift:{value}:night")],
+            [InlineKeyboardButton("🏠 Выходной", callback_data=f"routine:set_shift:{value}:off")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="routine:schedule")],
+        ]
+    )
+
+
+def routine_tasks_menu(tasks: list[RoutineTask]) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton("➕ Добавить задачу", callback_data="routine:add")]]
+    rows.extend([[InlineKeyboardButton(f"🗑 {clip(task.text, 30)}", callback_data=f"routine:disable:{task.id}")] for task in tasks])
+    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="menu:routine")])
+    return InlineKeyboardMarkup(rows)
+
+
+def routine_task_shift_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("Все дни", callback_data="routine:add_shift:all")],
+            [InlineKeyboardButton("Дневная", callback_data="routine:add_shift:day")],
+            [InlineKeyboardButton("Ночная", callback_data="routine:add_shift:night")],
+            [InlineKeyboardButton("Выходной", callback_data="routine:add_shift:off")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="routine:tasks")],
+        ]
+    )
+
+
+def routine_task_offset_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("Сразу после подъёма", callback_data="routine:add_offset:0")],
+            [InlineKeyboardButton("Через 30 минут", callback_data="routine:add_offset:30")],
+            [InlineKeyboardButton("Через 1 час", callback_data="routine:add_offset:60")],
+            [InlineKeyboardButton("Через 3 часа", callback_data="routine:add_offset:180")],
+            [InlineKeyboardButton("Другое время", callback_data="routine:add_offset:custom")],
+        ]
+    )
+
+
+def routine_task_policy_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("Один раз", callback_data="routine:add_policy:once")],
+            [InlineKeyboardButton("Напоминать до выполнения", callback_data="routine:add_policy:digest")],
+        ]
+    )
+
+
+def routine_settings_menu(enabled: bool, interval: int, wake_times: dict[str, str]) -> InlineKeyboardMarkup:
+    toggle = "Выключить" if enabled else "Включить"
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton(f"🔔 {toggle}", callback_data="routine:toggle")],
+            [InlineKeyboardButton(f"☀️ Подъём дневная: {wake_times['day']}", callback_data="routine:wake:day")],
+            [InlineKeyboardButton(f"🌙 Подъём ночная: {wake_times['night']}", callback_data="routine:wake:night")],
+            [InlineKeyboardButton(f"🏠 Подъём выходной: {wake_times['off']}", callback_data="routine:wake:off")],
+            [InlineKeyboardButton(f"Сводка: каждые {interval} ч", callback_data="routine:interval")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="menu:routine")],
+        ]
+    )
+
+
+def routine_interval_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton(f"Каждые {hours} ч", callback_data=f"routine:set_interval:{hours}")] for hours in (2, 3, 4)]
+        + [[InlineKeyboardButton("⬅️ Назад", callback_data="routine:settings")]]
+    )
+
+
+def routine_checklist_kb(tasks: list[RoutineTask], routine_date) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(f"✅ {clip(task.text, 25)}", callback_data=f"routine:done:{task.id}:{routine_date}")] for task in tasks]
+    if len(tasks) > 1:
+        rows.append([InlineKeyboardButton("✅ Выполнить всё", callback_data=f"routine:done_all:{routine_date}")])
+    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="menu:routine")])
+    return InlineKeyboardMarkup(rows)
 
 
 def data_menu() -> InlineKeyboardMarkup:
