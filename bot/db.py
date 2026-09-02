@@ -7,7 +7,7 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from .models import ChatSettingsRecord, Note, Reminder, RoutineSettings, RoutineTask, ShiftDay
+from .models import ChatSettingsRecord, Note, Reminder, RoutineDayStart, RoutineSettings, RoutineTask, ShiftDay
 from .utils.date_utils import iso_utc, parse_iso_utc, utc_now
 
 
@@ -80,6 +80,13 @@ class Database:
                     shift_type TEXT NOT NULL CHECK(shift_type IN ('day', 'night', 'off')),
                     PRIMARY KEY(chat_id, routine_date)
                 );
+                CREATE TABLE IF NOT EXISTS routine_day_starts (
+                    chat_id INTEGER NOT NULL,
+                    routine_date TEXT NOT NULL,
+                    shift_type TEXT NOT NULL CHECK(shift_type IN ('day', 'night', 'off')),
+                    started_at TEXT NOT NULL,
+                    PRIMARY KEY(chat_id, routine_date)
+                );
                 CREATE TABLE IF NOT EXISTS routine_tasks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     chat_id INTEGER NOT NULL,
@@ -121,6 +128,8 @@ class Database:
                     ON routine_tasks(chat_id, is_active, shift_type);
                 CREATE INDEX IF NOT EXISTS idx_shift_schedule_chat_date
                     ON shift_schedule(chat_id, routine_date);
+                CREATE INDEX IF NOT EXISTS idx_routine_day_starts_chat_time
+                    ON routine_day_starts(chat_id, started_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_notes_chat_text
                     ON notes(chat_id, text);
                 CREATE INDEX IF NOT EXISTS idx_reminders_chat_text
@@ -321,6 +330,41 @@ class Database:
                 (chat_id, start_date.isoformat(), (start_date + timedelta(days=days)).isoformat()),
             ).fetchall()
         return [ShiftDay(int(r["chat_id"]), date.fromisoformat(r["routine_date"]), str(r["shift_type"])) for r in rows]
+
+    def start_routine_day(self, chat_id: int, routine_date, shift_type: str, started_at) -> RoutineDayStart:
+        if shift_type not in {"day", "night", "off"}:
+            raise ValueError("Unknown shift type")
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO routine_day_starts VALUES (?, ?, ?, ?)",
+                (chat_id, routine_date.isoformat(), shift_type, iso_utc(started_at)),
+            )
+            row = conn.execute(
+                "SELECT * FROM routine_day_starts WHERE chat_id=? AND routine_date=?",
+                (chat_id, routine_date.isoformat()),
+            ).fetchone()
+        return RoutineDayStart(
+            int(row["chat_id"]),
+            routine_date,
+            str(row["shift_type"]),
+            parse_iso_utc(str(row["started_at"])),
+        )
+
+    def get_latest_routine_day_start(self, chat_id: int) -> RoutineDayStart | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM routine_day_starts WHERE chat_id=? ORDER BY started_at DESC LIMIT 1",
+                (chat_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        from datetime import date
+        return RoutineDayStart(
+            int(row["chat_id"]),
+            date.fromisoformat(str(row["routine_date"])),
+            str(row["shift_type"]),
+            parse_iso_utc(str(row["started_at"])),
+        )
 
     def add_routine_task(self, chat_id: int, text: str, shift_type: str, offset_minutes: int, repeat_in_digest: bool, expires_after_minutes: int) -> int:
         if shift_type not in {"all", "day", "night", "off"}:

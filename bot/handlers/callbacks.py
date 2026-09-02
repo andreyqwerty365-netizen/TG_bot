@@ -101,6 +101,29 @@ async def on_button(app: "BotApp", update: Update, context: ContextTypes.DEFAULT
         text = "📋 Осталось на сегодня:\n" + ("\n".join(f"{i}. {task.text}" for i, task in enumerate(tasks, 1)) if tasks else "Всё выполнено или актуальных задач нет.")
         await query.edit_message_text(text, reply_markup=routine_checklist_kb(tasks, routine_day.routine_date))
         return
+    if data == "routine:start":
+        now = utc_now()
+        routine_date = to_local(now, app.db.get_chat_settings(chat_id).tz_offset_minutes).date()
+        shift = app.db.get_shift_day(chat_id, routine_date)
+        if shift is None:
+            await query.edit_message_text(
+                "Сначала укажи смену на сегодня в графике.",
+                reply_markup=routine_menu(app.db.get_routine_settings(chat_id).enabled),
+            )
+            return
+        started = app.db.start_routine_day(chat_id, routine_date, shift.shift_type, now)
+        app.db.set_routine_enabled(chat_id, True)
+        app.sync_routine_tick(context.application)
+        tasks = pending_tasks(app.db, chat_id, now)
+        labels = {"day": "дневная смена", "night": "ночная смена", "off": "выходной"}
+        text = f"☀️ День начат · {labels[started.shift_type]}"
+        if tasks:
+            text += "\n\nСейчас актуально:\n" + "\n".join(f"{i}. {task.text}" for i, task in enumerate(tasks, 1))
+        await query.edit_message_text(text, reply_markup=routine_checklist_kb(tasks, started.routine_date))
+        for task in tasks:
+            if not task.repeat_in_digest:
+                app.db.record_routine_delivery(chat_id, f"task:{started.routine_date}:{task.id}")
+        return
     if data == "routine:schedule":
         today = to_local(utc_now(), app.db.get_chat_settings(chat_id).tz_offset_minutes).date()
         days = app.db.list_shift_days(chat_id, today, 7)

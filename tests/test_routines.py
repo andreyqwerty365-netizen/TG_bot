@@ -24,19 +24,28 @@ def test_shift_profile_supports_day_night_and_off(tmp_path: Path):
 
 def test_night_routine_day_continues_after_midnight(tmp_path: Path):
     db = make_db(tmp_path)
-    db.set_shift_wake_time(1, "night", "19:00")
     db.set_shift_day(1, date(2026, 9, 1), "night")
+    db.start_routine_day(1, date(2026, 9, 1), "night", datetime(2026, 9, 1, 18, 17, tzinfo=UTC))
 
     context = find_routine_day(db, 1, datetime(2026, 9, 2, 2, 0, tzinfo=UTC))
 
     assert context is not None
     assert context.routine_date == date(2026, 9, 1)
     assert context.shift_type == "night"
+    assert context.wake_local == datetime(2026, 9, 1, 18, 17, tzinfo=UTC)
+
+
+def test_routine_day_does_not_exist_until_started_manually(tmp_path: Path):
+    db = make_db(tmp_path)
+    db.set_shift_day(1, date(2026, 9, 2), "day")
+
+    assert find_routine_day(db, 1, datetime(2026, 9, 2, 10, 0, tzinfo=UTC)) is None
 
 
 def test_one_time_task_is_delivered_once_and_not_in_digest(tmp_path: Path):
     db = make_db(tmp_path)
     db.set_shift_day(1, date(2026, 9, 2), "day")
+    db.start_routine_day(1, date(2026, 9, 2), "day", datetime(2026, 9, 2, 7, 0, tzinfo=UTC))
     task_id = db.add_routine_task(1, "Почистить зубы", "all", 0, False, 60)
     now = datetime(2026, 9, 2, 7, 5, tzinfo=UTC)
 
@@ -51,6 +60,7 @@ def test_one_time_task_is_delivered_once_and_not_in_digest(tmp_path: Path):
 def test_manual_today_list_includes_all_current_tasks(tmp_path: Path):
     db = make_db(tmp_path)
     db.set_shift_day(1, date(2026, 9, 2), "day")
+    db.start_routine_day(1, date(2026, 9, 2), "day", datetime(2026, 9, 2, 7, 0, tzinfo=UTC))
     once_id = db.add_routine_task(1, "Разовая", "all", 0, False, 60)
     digest_id = db.add_routine_task(1, "До выполнения", "all", 0, True, 600)
 
@@ -60,6 +70,7 @@ def test_manual_today_list_includes_all_current_tasks(tmp_path: Path):
 def test_digest_excludes_completed_and_expired_tasks(tmp_path: Path):
     db = make_db(tmp_path)
     db.set_shift_day(1, date(2026, 9, 2), "day")
+    db.start_routine_day(1, date(2026, 9, 2), "day", datetime(2026, 9, 2, 7, 0, tzinfo=UTC))
     active_id = db.add_routine_task(1, "Выпить лекарство", "day", 0, True, 600)
     done_id = db.add_routine_task(1, "Позвонить", "all", 0, True, 600)
     db.add_routine_task(1, "Утреннее дело", "all", 0, True, 30)

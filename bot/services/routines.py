@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 
 from ..db import Database
 from ..models import RoutineTask
@@ -16,18 +16,11 @@ class RoutineDayContext:
 
 
 def find_routine_day(db: Database, chat_id: int, now_utc: datetime) -> RoutineDayContext | None:
-    now_local = to_local(now_utc, db.get_chat_settings(chat_id).tz_offset_minutes)
-    wake_times = db.get_shift_wake_times(chat_id)
-    candidates = []
-    for routine_date in (now_local.date(), now_local.date() - timedelta(days=1)):
-        shift = db.get_shift_day(chat_id, routine_date)
-        if shift is None:
-            continue
-        hh, mm = map(int, wake_times[shift.shift_type].split(":"))
-        wake = datetime.combine(routine_date, time(hh, mm), tzinfo=now_local.tzinfo)
-        if wake <= now_local < wake + timedelta(hours=24):
-            candidates.append(RoutineDayContext(routine_date, shift.shift_type, wake))
-    return max(candidates, key=lambda item: item.wake_local) if candidates else None
+    started = db.get_latest_routine_day_start(chat_id)
+    if started is None or started.started_at > now_utc:
+        return None
+    wake_local = to_local(started.started_at, db.get_chat_settings(chat_id).tz_offset_minutes)
+    return RoutineDayContext(started.routine_date, started.shift_type, wake_local)
 
 
 def _eligible(db: Database, chat_id: int, now_utc: datetime):

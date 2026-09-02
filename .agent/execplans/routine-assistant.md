@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections Progress, Surprises & Discoveri
 
 ## Purpose / Big Picture
 
-After this change the bot has a smaller main menu, remembers which Telegram message is the current interactive menu even after a restart, and rejects buttons from older menu messages. The user can also define whether a date is a day shift, night shift, or day off; maintain reusable routine tasks relative to wake-up time; mark tasks complete; and receive a wake-up checklist plus three-hour summaries containing only unfinished tasks that are still relevant.
+After this change the bot has a smaller main menu, remembers which Telegram message is the current interactive menu even after a restart, and rejects buttons from older menu messages. The user can define whether a date is a day shift, night shift, or day off; explicitly start each day when actually awake; maintain reusable routine tasks relative to that click; mark tasks complete; and receive summaries containing only unfinished tasks that are still relevant.
 
 ## Progress
 
@@ -14,6 +14,8 @@ After this change the bot has a smaller main menu, remembers which Telegram mess
 - [x] (2026-09-02 14:35+03:00) Added red-green persistence/service tests and implemented shift schedules, routine tasks, completion, expiry, and delivery deduplication.
 - [x] (2026-09-02 14:50+03:00) Added red-green UI/handler tests and implemented setup, task construction, wake settings, completion, and scheduled summaries.
 - [x] (2026-09-02 15:00+03:00) Fixed simultaneous one-time/digest delivery with a reproducing test; full suite reports 124 passed and production preflight passes.
+- [x] (2026-09-02 16:20+03:00) Replaced clock-based wake-up with an explicit “Начать день” action using red-green persistence, service, UI, and callback tests.
+- [ ] Add monthly schedule import after receiving a representative screenshot of the user's real table layout.
 
 ## Surprises & Discoveries
 
@@ -41,7 +43,13 @@ After this change the bot has a smaller main menu, remembers which Telegram mess
   Rationale: A routine task is reused across many shift days and needs per-routine-day status without generating an unbounded collection of ordinary reminders in advance.
   Date/Author: 2026-09-02 / Codex
 - Decision: Define a routine day by the most recent configured shift wake-up within the last 24 hours, not by midnight.
-  Rationale: A night shift crosses midnight and must remain one coherent work-and-sleep cycle.
+  Rationale: Superseded by the manual-start decision below.
+  Date/Author: 2026-09-02 / Codex
+- Decision: Define the start of every routine day by the user's explicit “Начать день” click and keep the stored start across midnight.
+  Rationale: Actual waking time varies on day, night, and off days; a Telegram bot cannot infer passive online presence reliably.
+  Date/Author: 2026-09-02 / Codex
+- Decision: Prefer screenshot-based monthly schedule import with a parsed preview and explicit confirmation, but defer the parser until a real schedule screenshot is available.
+  Rationale: Shift-table layouts and labels vary; a sample is required to build and test reliable recognition without silently assigning incorrect shifts.
   Date/Author: 2026-09-02 / Codex
 - Decision: Send one-time task prompts once, exclude them from later summaries, and include “until done” tasks in summaries until completion or expiry.
   Rationale: This directly models the user’s tooth-brushing and water example while permitting persistent tasks for the rest of the day.
@@ -49,13 +57,13 @@ After this change the bot has a smaller main menu, remembers which Telegram mess
 
 ## Outcomes & Retrospective
 
-The compact menu, restart-safe single active message, three shift types, seven-day schedule editor, task constructor, wake-time settings, completion tracking, one-time prompts, and configurable two/three/four-hour summaries are implemented. `pytest -q` reports 124 passed, `tools/production_preflight.py` reports `Production preflight passed.`, `compileall` succeeds, and `git diff --check` reports no whitespace errors. Bulk schedule parsing is intentionally deferred until the user supplies the real schedule format.
+The compact menu, restart-safe single active message, three shift types, seven-day schedule editor, task constructor, manual day start, completion tracking, one-time prompts, and configurable two/three/four-hour summaries are implemented. The monthly screenshot parser remains intentionally deferred until the user supplies the real schedule format.
 
 ## Context and Orientation
 
 The repository is a Python Telegram bot using `python-telegram-bot`, SQLite, and pytest. `bot/application.py` owns orchestration and scheduled jobs. `bot/db.py` owns schema and queries. `bot/views.py` builds Russian text and inline keyboards. `bot/handlers/callbacks.py` routes button presses, while `bot/handlers/messages.py` handles constructor text input. `bot/services/organizer.py` contains existing notes and reminder business logic. Tests live in `tests/`.
 
-An “active menu” means the one bot-authored Telegram message whose inline buttons are allowed to mutate bot state. A “routine day” means the work/rest cycle that begins at the configured wake-up time for a scheduled date. A “task template” is a reusable instruction, such as “выпить стакан воды”, attached to one or all shift types and scheduled as an offset in minutes after wake-up. A task marked one-time is delivered once and omitted from later digests. A task marked until-done is repeated in digest summaries until completed or until its expiry offset.
+An “active menu” means the one bot-authored Telegram message whose inline buttons are allowed to mutate bot state. A “routine day” means the work/rest cycle that begins when the user presses “Начать день”. A “task template” is a reusable instruction, such as “выпить стакан воды”, attached to one or all shift types and scheduled as an offset in minutes after that click. A task marked one-time is delivered once and omitted from later digests. A task marked until-done is repeated in digest summaries until completed or until its expiry offset.
 
 ## Plan of Work
 
@@ -94,7 +102,7 @@ The main-menu test must show callbacks for record, trainer, notes, reminders, to
 
 The stale-menu test must persist a current message ID, construct a callback update from a different ID, and observe that the query receives an “устарело” answer while no edit method or state-changing database operation is called. A new bot application over the same database must still read the active ID.
 
-Routine tests must demonstrate all three shift types; a night routine selected after midnight from the prior calendar date; one-time tasks disappearing after their initial delivery; until-done tasks appearing in a three-hour digest; completed and expired tasks disappearing; and delivery keys preventing duplicate output after another tick or restart.
+Routine tests must demonstrate all three shift types; no routine before a manual start; a night routine continuing after midnight; one-time tasks disappearing after their initial delivery; until-done tasks appearing in a three-hour digest; completed and expired tasks disappearing; and delivery keys preventing duplicate output after another tick or restart.
 
 Handler tests must demonstrate configuring a date, changing wake-up time, creating a reusable task, opening today’s checklist, and marking a task complete. The full existing suite must finish with zero failures.
 
@@ -122,3 +130,5 @@ No new third-party dependency is required. `bot/db.py` will expose persistence m
 Plan revision note (2026-09-02): Initial plan created after repository inspection and the user’s correction to exactly three shift types.
 
 Plan revision note (2026-09-02): Marked implementation complete, recorded the simultaneous-delivery discovery, validation evidence, and the deferred bulk schedule format.
+
+Plan revision note (2026-09-02): Replaced fixed wake times with manual day starts after the user clarified that wake time varies for every shift type; recorded the screenshot-import follow-up dependency.

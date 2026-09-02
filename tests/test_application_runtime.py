@@ -236,6 +236,7 @@ async def test_routine_tick_combines_simultaneous_task_and_digest(tmp_path: Path
     bot_app.db.init()
     bot_app.db.set_routine_enabled(1, True)
     bot_app.db.set_shift_day(1, date(2026, 9, 2), "day")
+    bot_app.db.start_routine_day(1, date(2026, 9, 2), "day", datetime(2026, 9, 2, 7, 0, tzinfo=UTC))
     bot_app.db.add_routine_task(1, "Разовая", "all", 180, False, 960)
     bot_app.db.add_routine_task(1, "До выполнения", "all", 0, True, 960)
     monkeypatch.setattr("bot.application.utc_now", lambda: datetime(2026, 9, 2, 10, 0, tzinfo=UTC))

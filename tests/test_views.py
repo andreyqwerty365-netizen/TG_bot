@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from bot.models import Note, Reminder
-from bot.views import additional_tools_menu, data_menu, main_menu, notes_menu, reminder_created_kb, reminders_menu, routine_menu, routine_task_policy_menu, search_results_menu, settings_menu
+from bot.views import additional_tools_menu, data_menu, main_menu, notes_menu, reminder_created_kb, reminders_menu, routine_menu, routine_settings_menu, routine_task_policy_menu, search_results_menu, settings_menu
 
 
 def _callbacks(markup):
@@ -58,8 +58,11 @@ def test_main_menu_keeps_rare_tools_one_level_deeper():
 
 def test_routine_menu_exposes_schedule_tasks_and_settings():
     callbacks = _callbacks(routine_menu(False))
-    assert {"routine:today", "routine:schedule", "routine:tasks", "routine:settings"} <= set(callbacks)
+    assert {"routine:start", "routine:today", "routine:schedule", "routine:tasks", "routine:settings"} <= set(callbacks)
     assert "routine:toggle" in callbacks
 
     policy_callbacks = _callbacks(routine_task_policy_menu())
     assert {"routine:add_policy:once", "routine:add_policy:digest"} <= set(policy_callbacks)
+
+    settings_callbacks = _callbacks(routine_settings_menu(False, 3, {"day": "07:00", "night": "19:00", "off": "09:00"}))
+    assert not any(callback.startswith("routine:wake:") for callback in settings_callbacks)

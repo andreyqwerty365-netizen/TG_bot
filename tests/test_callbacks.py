@@ -11,6 +11,7 @@ from bot.application import ACTIVE_KEY, PLAN_KEY, STATE_KEY, BotApp
 from bot.config import Settings
 from bot.handlers.callbacks import on_button
 from bot.handlers.messages import on_text
+from bot.services.routines import due_one_time_tasks
 
 
 class FakeJob:
@@ -25,12 +26,16 @@ class FakeJobQueue:
     def __init__(self) -> None:
         self.jobs: dict[str, list[FakeJob]] = {}
         self.once_calls: list[dict] = []
+        self.repeat_calls: list[dict] = []
 
     def get_jobs_by_name(self, name: str):
         return self.jobs.get(name, [])
 
     def run_once(self, callback, when, data, name):
         self.once_calls.append({"callback": callback, "when": when, "data": data, "name": name})
+
+    def run_repeating(self, callback, interval, first, data, name):
+        self.repeat_calls.append({"callback": callback, "interval": interval, "first": first, "data": data, "name": name})
 
 
 def build_runtime(tmp_path: Path):
@@ -122,6 +127,26 @@ async def test_routine_schedule_and_task_constructor(tmp_path: Path):
     task = app.db.list_routine_tasks(1)[0]
     assert task.text == "Выпить стакан воды"
     assert task.repeat_in_digest is False
+
+
+@pytest.mark.anyio
+async def test_start_day_uses_scheduled_shift_and_current_click_time(tmp_path: Path, monkeypatch):
+    app, context = build_runtime(tmp_path)
+    app.db.set_shift_day(1, datetime(2026, 9, 2).date(), "night")
+    app.db.add_routine_task(1, "Выпить воды", "all", 0, False, 60)
+    clicked_at = datetime(2026, 9, 2, 14, 23, tzinfo=UTC)
+    monkeypatch.setattr("bot.handlers.callbacks.utc_now", lambda: clicked_at)
+
+    query = await press(app, context, "routine:start")
+
+    started = app.db.get_latest_routine_day_start(1)
+    assert started is not None
+    assert started.routine_date == datetime(2026, 9, 2).date()
+    assert started.shift_type == "night"
+    assert started.started_at == clicked_at
+    assert app.db.get_routine_settings(1).enabled is True
+    assert "День начат" in query.edit_message_text.await_args.args[0]
+    assert due_one_time_tasks(app.db, 1, clicked_at) == []
 
 
 @pytest.mark.anyio

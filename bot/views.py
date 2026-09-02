@@ -176,6 +176,7 @@ def routine_menu(enabled: bool) -> InlineKeyboardMarkup:
     toggle = "🔕 Выключить" if enabled else "🔔 Включить"
     return InlineKeyboardMarkup(
         [
+            [InlineKeyboardButton("☀️ Начать день", callback_data="routine:start")],
             [InlineKeyboardButton("📋 Сегодня", callback_data="routine:today")],
             [InlineKeyboardButton("🗓 График смен", callback_data="routine:schedule")],
             [InlineKeyboardButton("🧩 Задачи", callback_data="routine:tasks")],
@@ -256,9 +257,6 @@ def routine_settings_menu(enabled: bool, interval: int, wake_times: dict[str, st
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton(f"🔔 {toggle}", callback_data="routine:toggle")],
-            [InlineKeyboardButton(f"☀️ Подъём дневная: {wake_times['day']}", callback_data="routine:wake:day")],
-            [InlineKeyboardButton(f"🌙 Подъём ночная: {wake_times['night']}", callback_data="routine:wake:night")],
-            [InlineKeyboardButton(f"🏠 Подъём выходной: {wake_times['off']}", callback_data="routine:wake:off")],
             [InlineKeyboardButton(f"Сводка: каждые {interval} ч", callback_data="routine:interval")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="menu:routine")],
         ]

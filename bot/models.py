@@ -48,6 +48,14 @@ class ShiftDay:
 
 
 @dataclass(slots=True)
+class RoutineDayStart:
+    chat_id: int
+    routine_date: date
+    shift_type: str
+    started_at: datetime
+
+
+@dataclass(slots=True)
 class RoutineTask:
     id: int
     chat_id: int
