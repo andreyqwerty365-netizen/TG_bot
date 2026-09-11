@@ -52,7 +52,6 @@ require_file "$RESTIC_ENV_FILE"
 require_file "$ALERT_ENV_FILE"
 
 require_env_value "$APP_ENV_FILE" BOT_TOKEN
-require_env_value "$APP_ENV_FILE" BOT_ALLOWED_USER_IDS
 require_env_value "$RESTIC_ENV_FILE" RESTIC_REPOSITORY
 require_env_value "$RESTIC_ENV_FILE" RESTIC_PASSWORD
 require_env_value "$RESTIC_ENV_FILE" AWS_ACCESS_KEY_ID

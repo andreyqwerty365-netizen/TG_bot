@@ -39,23 +39,6 @@ if "!BOT_TOKEN!"=="" (
 )
 
 echo [2/5] Проверка Python...
-if "!BOT_ALLOWED_USER_IDS!"=="" (
-  echo.
-  set /p BOT_ALLOWED_USER_IDS=Вставь Telegram user ID владельца и нажми Enter: 
-  if "!BOT_ALLOWED_USER_IDS!"=="" (
-    echo [ERROR] Пустой BOT_ALLOWED_USER_IDS. Запуск отменён.
-    pause
-    exit /b 1
-  )
-  powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$p='.env';$c=Get-Content $p -ErrorAction SilentlyContinue;$found=$false;$out=@();foreach($line in $c){if($line -match '^[ ]*BOT_ALLOWED_USER_IDS='){$out += ('BOT_ALLOWED_USER_IDS=' + $env:BOT_ALLOWED_USER_IDS);$found=$true}else{$out += $line}};if(-not $found){$out += ('BOT_ALLOWED_USER_IDS=' + $env:BOT_ALLOWED_USER_IDS)};[System.IO.File]::WriteAllLines($p,$out,(New-Object System.Text.UTF8Encoding($false)))"
-  if errorlevel 1 (
-    echo [ERROR] Не удалось сохранить BOT_ALLOWED_USER_IDS в .env
-    pause
-    exit /b 1
-  )
-)
-
 where py >nul 2>nul
 if %errorlevel%==0 (
   set "PY=py -3"

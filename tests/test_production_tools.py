@@ -73,7 +73,6 @@ def test_vps_preflight_checks_dependencies_and_secret_files():
         "require_command stat",
         "require_bot_owned_directory",
         '"10001"',
-        "BOT_ALLOWED_USER_IDS",
         "RESTIC_REPOSITORY",
         "AWS_SECRET_ACCESS_KEY",
         "BOT_ALERT_CHAT_ID",
@@ -81,6 +80,7 @@ def test_vps_preflight_checks_dependencies_and_secret_files():
         "tools/healthcheck.py",
     ]:
         assert required in text
+    assert 'require_env_value "$APP_ENV_FILE" BOT_ALLOWED_USER_IDS' not in text
 
 
 def test_health_monitor_keeps_host_state_outside_container_data():

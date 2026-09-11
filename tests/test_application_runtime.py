@@ -48,10 +48,11 @@ def test_create_application_requires_token(tmp_path: Path):
         create_application(settings)
 
 
-def test_create_application_requires_owner_allowlist(tmp_path: Path):
+def test_create_application_allows_public_access_without_allowlist(tmp_path: Path):
     settings = Settings(bot_token="123:token", db_path=tmp_path / "notes.db")
-    with pytest.raises(RuntimeError, match="BOT_ALLOWED_USER_IDS"):
-        create_application(settings)
+    app = create_application(settings)
+
+    assert app is not None
 
 
 def test_settings_from_env_parses_allowed_user_ids(monkeypatch):
@@ -107,11 +108,20 @@ def test_owner_allowlist_accepts_only_configured_user(tmp_path: Path):
     assert not bot_app.is_user_allowed(None)
 
 
-def test_empty_owner_allowlist_denies_access(tmp_path: Path):
+def test_empty_owner_allowlist_allows_any_identified_user(tmp_path: Path):
     bot_app = BotApp(Settings(bot_token="123:token", db_path=tmp_path / "notes.db"))
 
-    assert not bot_app.is_user_allowed(111)
+    assert bot_app.is_user_allowed(111)
+    assert bot_app.is_user_allowed(222)
     assert not bot_app.is_user_allowed(None)
+
+
+@pytest.mark.anyio
+async def test_public_access_does_not_stop_identified_user_update(tmp_path: Path):
+    bot_app = BotApp(Settings(bot_token="123:token", db_path=tmp_path / "notes.db"))
+    update = SimpleNamespace(effective_user=SimpleNamespace(id=222), callback_query=None, effective_chat=None)
+
+    await bot_app.require_allowed_user(update, SimpleNamespace())
 
 
 def test_default_timezone_is_used_for_new_chat(tmp_path: Path):

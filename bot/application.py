@@ -89,8 +89,6 @@ class BotApp:
     def build(self) -> Application:
         if not self.settings.bot_token:
             raise RuntimeError("BOT_TOKEN не найден. Укажи переменную окружения BOT_TOKEN.")
-        if not self.settings.allowed_user_ids:
-            raise RuntimeError("BOT_ALLOWED_USER_IDS не найден. Укажи Telegram user ID владельца.")
 
         self.db.init()
         self.trainer_database.init()
@@ -168,7 +166,9 @@ class BotApp:
                 )
 
     def is_user_allowed(self, user_id: int | None) -> bool:
-        return user_id in self.settings.allowed_user_ids
+        if user_id is None:
+            return False
+        return not self.settings.allowed_user_ids or user_id in self.settings.allowed_user_ids
 
     async def require_allowed_user(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user = update.effective_user
