@@ -85,6 +85,7 @@ class Database:
                     routine_date TEXT NOT NULL,
                     shift_type TEXT NOT NULL CHECK(shift_type IN ('day', 'night', 'off')),
                     started_at TEXT NOT NULL,
+                    ended_at TEXT,
                     PRIMARY KEY(chat_id, routine_date)
                 );
                 CREATE TABLE IF NOT EXISTS routine_tasks (
@@ -149,6 +150,7 @@ class Database:
             ("chat_settings", "dayplan_enabled INTEGER NOT NULL DEFAULT 0"),
             ("chat_settings", "dayplan_time TEXT"),
             ("chat_settings", "active_message_id INTEGER"),
+            ("routine_day_starts", "ended_at TEXT"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {coldef}")
@@ -336,7 +338,7 @@ class Database:
             raise ValueError("Unknown shift type")
         with self.connect() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO routine_day_starts VALUES (?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO routine_day_starts(chat_id, routine_date, shift_type, started_at) VALUES (?, ?, ?, ?)",
                 (chat_id, routine_date.isoformat(), shift_type, iso_utc(started_at)),
             )
             row = conn.execute(
@@ -348,6 +350,7 @@ class Database:
             routine_date,
             str(row["shift_type"]),
             parse_iso_utc(str(row["started_at"])),
+            parse_iso_utc(str(row["ended_at"])) if row["ended_at"] else None,
         )
 
     def get_latest_routine_day_start(self, chat_id: int) -> RoutineDayStart | None:
@@ -364,7 +367,22 @@ class Database:
             date.fromisoformat(str(row["routine_date"])),
             str(row["shift_type"]),
             parse_iso_utc(str(row["started_at"])),
+            parse_iso_utc(str(row["ended_at"])) if row["ended_at"] else None,
         )
+
+    def end_routine_day(self, chat_id: int, ended_at) -> bool:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT routine_date FROM routine_day_starts WHERE chat_id=? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+                (chat_id,),
+            ).fetchone()
+            if row is None:
+                return False
+            cur = conn.execute(
+                "UPDATE routine_day_starts SET ended_at=? WHERE chat_id=? AND routine_date=?",
+                (iso_utc(ended_at), chat_id, str(row["routine_date"])),
+            )
+        return cur.rowcount > 0
 
     def add_routine_task(self, chat_id: int, text: str, shift_type: str, offset_minutes: int, repeat_in_digest: bool, expires_after_minutes: int) -> int:
         if shift_type not in {"all", "day", "night", "off"}:

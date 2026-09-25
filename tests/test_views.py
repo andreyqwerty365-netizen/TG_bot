@@ -58,7 +58,7 @@ def test_main_menu_keeps_rare_tools_one_level_deeper():
 
 def test_routine_menu_exposes_schedule_tasks_and_settings():
     callbacks = _callbacks(routine_menu(False))
-    assert {"routine:start", "routine:today", "routine:schedule", "routine:tasks", "routine:settings"} <= set(callbacks)
+    assert {"routine:start", "routine:end", "routine:today", "routine:schedule", "routine:tasks", "routine:settings"} <= set(callbacks)
     assert "routine:toggle" in callbacks
 
     policy_callbacks = _callbacks(routine_task_policy_menu())
@@ -66,3 +66,10 @@ def test_routine_menu_exposes_schedule_tasks_and_settings():
 
     settings_callbacks = _callbacks(routine_settings_menu(False, 3, {"day": "07:00", "night": "19:00", "off": "09:00"}))
     assert not any(callback.startswith("routine:wake:") for callback in settings_callbacks)
+
+
+def test_schedule_menu_exposes_monthly_screenshot_import():
+    from datetime import date
+    from bot.views import routine_schedule_menu
+
+    assert "routine:import_schedule" in _callbacks(routine_schedule_menu(date(2026, 9, 1), []))

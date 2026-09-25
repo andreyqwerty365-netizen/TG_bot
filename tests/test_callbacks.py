@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from PIL import Image, ImageDraw
 
 from bot.application import ACTIVE_KEY, PLAN_KEY, STATE_KEY, BotApp
 from bot.config import Settings
 from bot.handlers.callbacks import on_button
-from bot.handlers.messages import on_text
+from bot.handlers.messages import on_photo, on_text
 from bot.services.routines import due_one_time_tasks
 
 
@@ -147,6 +149,72 @@ async def test_start_day_uses_scheduled_shift_and_current_click_time(tmp_path: P
     assert app.db.get_routine_settings(1).enabled is True
     assert "День начат" in query.edit_message_text.await_args.args[0]
     assert due_one_time_tasks(app.db, 1, clicked_at) == []
+
+
+@pytest.mark.anyio
+async def test_end_day_callback_closes_active_routine(tmp_path: Path, monkeypatch):
+    app, context = build_runtime(tmp_path)
+    started_at = datetime(2026, 9, 2, 8, 0, tzinfo=UTC)
+    ended_at = datetime(2026, 9, 2, 23, 0, tzinfo=UTC)
+    app.db.start_routine_day(1, started_at.date(), "off", started_at)
+    monkeypatch.setattr("bot.handlers.callbacks.utc_now", lambda: ended_at)
+
+    query = await press(app, context, "routine:end")
+
+    assert app.db.get_latest_routine_day_start(1).ended_at == ended_at
+    assert "День завершён" in query.edit_message_text.await_args.args[0]
+
+
+@pytest.mark.anyio
+async def test_schedule_import_confirmation_applies_whole_month(tmp_path: Path):
+    app, context = build_runtime(tmp_path)
+    state = app.get_chat_state(context, 1)
+    state.mode = "routine_schedule_confirm"
+    state.payload = {"schedule_year": 2026, "schedule_month": 9, "schedule_shifts": ["day", "night"] + ["off"] * 28}
+
+    await press(app, context, "routine:confirm_schedule")
+
+    assert app.db.get_shift_day(1, datetime(2026, 9, 1).date()).shift_type == "day"
+    assert app.db.get_shift_day(1, datetime(2026, 9, 2).date()).shift_type == "night"
+    assert app.db.get_shift_day(1, datetime(2026, 9, 30).date()).shift_type == "off"
+
+
+@pytest.mark.anyio
+async def test_schedule_import_collects_month_then_photo_preview(tmp_path: Path):
+    app, context = build_runtime(tmp_path)
+
+    await press(app, context, "routine:import_schedule")
+    assert app.get_chat_state(context, 1).mode == "waiting_schedule_month"
+
+    text_update = SimpleNamespace(
+        effective_chat=SimpleNamespace(id=1),
+        message=SimpleNamespace(text="09.2026"),
+    )
+    await on_text(app, text_update, context)
+    assert app.get_chat_state(context, 1).mode == "waiting_schedule_image"
+
+    image = Image.new("RGB", (20 + 30 * 12 + 20, 50), "white")
+    draw = ImageDraw.Draw(image)
+    for index in range(31):
+        x = 20 + index * 12
+        draw.line((x, 0, x, 49), fill="black", width=1)
+    draw.rectangle((21, 30, 31, 48), fill="red")
+    draw.rectangle((33, 30, 43, 48), fill="blue")
+    output = BytesIO()
+    image.save(output, format="PNG")
+    telegram_file = SimpleNamespace(download_as_bytearray=AsyncMock(return_value=bytearray(output.getvalue())))
+    context.bot.get_file = AsyncMock(return_value=telegram_file)
+    photo_update = SimpleNamespace(
+        effective_chat=SimpleNamespace(id=1),
+        message=SimpleNamespace(photo=[SimpleNamespace(file_id="photo", file_size=len(output.getvalue()))]),
+    )
+
+    await on_photo(app, photo_update, context)
+
+    state = app.get_chat_state(context, 1)
+    assert state.mode == "routine_schedule_confirm"
+    assert state.payload["schedule_shifts"][:3] == ["day", "night", "off"]
+    assert "Дневные: 1" in context.bot.send_message.await_args.args[1]
 
 
 @pytest.mark.anyio

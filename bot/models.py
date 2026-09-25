@@ -53,6 +53,7 @@ class RoutineDayStart:
     routine_date: date
     shift_type: str
     started_at: datetime
+    ended_at: datetime | None
 
 
 @dataclass(slots=True)

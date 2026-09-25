@@ -2,12 +2,15 @@
 
 import json
 import logging
+import calendar
+import re
 from typing import TYPE_CHECKING
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..services.import_export import MAX_IMPORT_FILE_BYTES, import_payload
+from ..services.schedule_image import parse_shift_colors
 from ..services.organizer import (
     build_capture_success_text,
     build_saved_reminder_text,
@@ -20,13 +23,23 @@ from ..services.organizer import (
     smart_capture,
 )
 from ..utils.date_utils import fmt_ru_date_or_time, local_to_utc
-from ..views import cancel_kb, main_menu, reminder_created_kb, reminder_entry_kb, routine_settings_menu, routine_task_policy_menu, routine_task_shift_menu, settings_menu
+from ..views import cancel_kb, main_menu, reminder_created_kb, reminder_entry_kb, routine_schedule_confirm_menu, routine_settings_menu, routine_task_policy_menu, routine_task_shift_menu, settings_menu
 
 if TYPE_CHECKING:
     from ..application import BotApp
 
 
 interaction_logger = logging.getLogger("bot.interactions")
+MAX_SCHEDULE_IMAGE_BYTES = 10 * 1024 * 1024
+
+
+def _schedule_preview(shifts: list[str]) -> str:
+    groups = {
+        "Дневные": [str(index) for index, value in enumerate(shifts, 1) if value == "day"],
+        "Ночные": [str(index) for index, value in enumerate(shifts, 1) if value == "night"],
+        "Выходные": [str(index) for index, value in enumerate(shifts, 1) if value == "off"],
+    }
+    return "📷 Проверь график:\n" + "\n".join(f"{label}: {', '.join(days) or '—'}" for label, days in groups.items())
 
 
 async def capture_text(app: "BotApp", context: ContextTypes.DEFAULT_TYPE, chat_id: int, text: str) -> None:
@@ -61,6 +74,16 @@ async def on_text(app: "BotApp", update: Update, context: ContextTypes.DEFAULT_T
     if state.mode and state.mode.startswith("trainer_"):
         if await app.trainer.handle_text(app, update, context):
             return
+
+    if state.mode == "waiting_schedule_month":
+        match = re.fullmatch(r"(0?[1-9]|1[0-2])\.(20\d{2})", text)
+        if not match:
+            await app.send_active(context, chat_id, "Нужен формат ММ.ГГГГ, например 09.2026.", reply_markup=cancel_kb("routine:schedule"))
+            return
+        state.mode = "waiting_schedule_image"
+        state.payload = {"schedule_month": int(match.group(1)), "schedule_year": int(match.group(2))}
+        await app.send_active(context, chat_id, "Теперь пришли скриншот графика как фотографию.", reply_markup=cancel_kb("routine:schedule"))
+        return
 
     if state.mode == "waiting_routine_task_text":
         app.set_mode(context, chat_id, "routine_add_shift", text=text)
@@ -212,6 +235,31 @@ async def on_voice(app: "BotApp", update: Update, context: ContextTypes.DEFAULT_
         "Голосовой ввод добавим следующим этапом. Пока пришли мысль текстом — я сохраню заметку или напоминание.",
         reply_markup=main_menu(),
     )
+
+
+async def on_photo(app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    state = app.get_chat_state(context, chat_id)
+    if state.mode != "waiting_schedule_image":
+        await app.send_active(context, chat_id, "Фото получил, но импорт графика сейчас не запущен.", reply_markup=main_menu())
+        return
+    photo = update.message.photo[-1] if update.message.photo else None
+    if photo is None or (photo.file_size is not None and photo.file_size > MAX_SCHEDULE_IMAGE_BYTES):
+        await app.send_active(context, chat_id, "Изображение слишком большое. Максимум 10 МБ.", reply_markup=cancel_kb("routine:schedule"))
+        return
+    try:
+        telegram_file = await context.bot.get_file(photo.file_id)
+        image_bytes = bytes(await telegram_file.download_as_bytearray())
+        if len(image_bytes) > MAX_SCHEDULE_IMAGE_BYTES:
+            raise ValueError("Изображение слишком большое. Максимум 10 МБ.")
+        days = calendar.monthrange(int(state.payload["schedule_year"]), int(state.payload["schedule_month"]))[1]
+        shifts = parse_shift_colors(image_bytes, days)
+    except Exception as exc:
+        await app.send_active(context, chat_id, f"Не смог распознать график: {exc}", reply_markup=cancel_kb("routine:schedule"))
+        return
+    state.mode = "routine_schedule_confirm"
+    state.payload["schedule_shifts"] = shifts
+    await app.send_active(context, chat_id, _schedule_preview(shifts), reply_markup=routine_schedule_confirm_menu())
 
 
 async def on_document(app: "BotApp", update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

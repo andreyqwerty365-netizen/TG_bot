@@ -42,6 +42,14 @@ def test_routine_day_does_not_exist_until_started_manually(tmp_path: Path):
     assert find_routine_day(db, 1, datetime(2026, 9, 2, 10, 0, tzinfo=UTC)) is None
 
 
+def test_finishing_day_stops_routine_until_next_manual_start(tmp_path: Path):
+    db = make_db(tmp_path)
+    db.start_routine_day(1, date(2026, 9, 2), "off", datetime(2026, 9, 2, 11, 0, tzinfo=UTC))
+
+    assert db.end_routine_day(1, datetime(2026, 9, 2, 23, 50, tzinfo=UTC)) is True
+    assert find_routine_day(db, 1, datetime(2026, 9, 3, 0, 0, tzinfo=UTC)) is None
+
+
 def test_one_time_task_is_delivered_once_and_not_in_digest(tmp_path: Path):
     db = make_db(tmp_path)
     db.set_shift_day(1, date(2026, 9, 2), "day")

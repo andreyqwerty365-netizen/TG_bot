@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import logging
+import calendar
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
@@ -38,6 +39,7 @@ from ..views import (
     routine_interval_menu,
     routine_menu,
     routine_schedule_menu,
+    routine_schedule_confirm_menu,
     routine_settings_menu,
     routine_shift_choice_menu,
     routine_task_offset_menu,
@@ -123,6 +125,31 @@ async def on_button(app: "BotApp", update: Update, context: ContextTypes.DEFAULT
         for task in tasks:
             if not task.repeat_in_digest:
                 app.db.record_routine_delivery(chat_id, f"task:{started.routine_date}:{task.id}")
+        return
+    if data == "routine:end":
+        if app.db.end_routine_day(chat_id, utc_now()):
+            text = "🌙 День завершён. Напоминания остановлены."
+        else:
+            text = "Активного дня сейчас нет."
+        await query.edit_message_text(text, reply_markup=routine_menu(app.db.get_routine_settings(chat_id).enabled))
+        return
+    if data == "routine:import_schedule":
+        app.set_mode(context, chat_id, "waiting_schedule_month")
+        await query.edit_message_text("Укажи месяц графика в формате ММ.ГГГГ.", reply_markup=cancel_kb("routine:schedule"))
+        return
+    if data == "routine:confirm_schedule":
+        year = int(state.payload["schedule_year"])
+        month = int(state.payload["schedule_month"])
+        shifts = list(state.payload["schedule_shifts"])
+        expected_days = calendar.monthrange(year, month)[1]
+        if len(shifts) != expected_days:
+            app.set_mode(context, chat_id, None)
+            await query.edit_message_text("Данные предпросмотра устарели. Импортируй график ещё раз.", reply_markup=routine_menu(app.db.get_routine_settings(chat_id).enabled))
+            return
+        for day_number, shift_type in enumerate(shifts, 1):
+            app.db.set_shift_day(chat_id, date(year, month, day_number), shift_type)
+        app.set_mode(context, chat_id, None)
+        await query.edit_message_text("✅ График на месяц сохранён.", reply_markup=routine_menu(app.db.get_routine_settings(chat_id).enabled))
         return
     if data == "routine:schedule":
         today = to_local(utc_now(), app.db.get_chat_settings(chat_id).tz_offset_minutes).date()

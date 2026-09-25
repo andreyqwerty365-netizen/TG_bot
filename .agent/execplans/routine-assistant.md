@@ -15,7 +15,7 @@ After this change the bot has a smaller main menu, remembers which Telegram mess
 - [x] (2026-09-02 14:50+03:00) Added red-green UI/handler tests and implemented setup, task construction, wake settings, completion, and scheduled summaries.
 - [x] (2026-09-02 15:00+03:00) Fixed simultaneous one-time/digest delivery with a reproducing test; full suite reports 124 passed and production preflight passes.
 - [x] (2026-09-02 16:20+03:00) Replaced clock-based wake-up with an explicit “Начать день” action using red-green persistence, service, UI, and callback tests.
-- [ ] Add monthly schedule import after receiving a representative screenshot of the user's real table layout.
+- [x] (2026-09-26) Added screenshot-based monthly schedule import with color recognition, preview, and confirmation, plus explicit day completion.
 
 ## Surprises & Discoveries
 
@@ -49,15 +49,18 @@ After this change the bot has a smaller main menu, remembers which Telegram mess
   Rationale: Actual waking time varies on day, night, and off days; a Telegram bot cannot infer passive online presence reliably.
   Date/Author: 2026-09-02 / Codex
 - Decision: Prefer screenshot-based monthly schedule import with a parsed preview and explicit confirmation, but defer the parser until a real schedule screenshot is available.
-  Rationale: Shift-table layouts and labels vary; a sample is required to build and test reliable recognition without silently assigning incorrect shifts.
+  Rationale: The supplied table uses stable red day-shift, blue night-shift, and white/gray off-day cells. The user enters the month separately, and confirmation prevents silent incorrect assignments.
   Date/Author: 2026-09-02 / Codex
+- Decision: Keep wake time and work-shift time as separate anchors, and add “Завершить день”.
+  Rationale: Night work is fixed at 21:00–09:00, but sleep and waking vary; personal routines must follow the manual start while completion stops further reminders.
+  Date/Author: 2026-09-26 / Codex
 - Decision: Send one-time task prompts once, exclude them from later summaries, and include “until done” tasks in summaries until completion or expiry.
   Rationale: This directly models the user’s tooth-brushing and water example while permitting persistent tasks for the rest of the day.
   Date/Author: 2026-09-02 / Codex
 
 ## Outcomes & Retrospective
 
-The compact menu, restart-safe single active message, three shift types, seven-day schedule editor, task constructor, manual day start, completion tracking, one-time prompts, and configurable two/three/four-hour summaries are implemented. The monthly screenshot parser remains intentionally deferred until the user supplies the real schedule format.
+The compact menu, restart-safe single active message, three shift types, seven-day editor, monthly screenshot import, task constructor, manual day start/end, completion tracking, one-time prompts, and configurable summaries are implemented. The full suite reports 133 passed and production preflight succeeds.
 
 ## Context and Orientation
 
@@ -132,3 +135,5 @@ Plan revision note (2026-09-02): Initial plan created after repository inspectio
 Plan revision note (2026-09-02): Marked implementation complete, recorded the simultaneous-delivery discovery, validation evidence, and the deferred bulk schedule format.
 
 Plan revision note (2026-09-02): Replaced fixed wake times with manual day starts after the user clarified that wake time varies for every shift type; recorded the screenshot-import follow-up dependency.
+
+Plan revision note (2026-09-26): Completed color-based monthly screenshot import and explicit day completion after receiving and interpreting the real schedule format.

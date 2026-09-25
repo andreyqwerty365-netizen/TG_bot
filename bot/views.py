@@ -177,6 +177,7 @@ def routine_menu(enabled: bool) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("☀️ Начать день", callback_data="routine:start")],
+            [InlineKeyboardButton("🌙 Завершить день", callback_data="routine:end")],
             [InlineKeyboardButton("📋 Сегодня", callback_data="routine:today")],
             [InlineKeyboardButton("🗓 График смен", callback_data="routine:schedule")],
             [InlineKeyboardButton("🧩 Задачи", callback_data="routine:tasks")],
@@ -196,8 +197,18 @@ def routine_schedule_menu(start_date, shift_days: list[ShiftDay]) -> InlineKeybo
         value = start_date + timedelta(days=offset)
         suffix = labels.get(configured.get(value), "➕ Не задано")
         rows.append([InlineKeyboardButton(f"{value:%d.%m} · {suffix}", callback_data=f"routine:choose_shift:{value}")])
+    rows.append([InlineKeyboardButton("📷 Импорт графика на месяц", callback_data="routine:import_schedule")])
     rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="menu:routine")])
     return InlineKeyboardMarkup(rows)
+
+
+def routine_schedule_confirm_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ Применить", callback_data="routine:confirm_schedule")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="routine:schedule")],
+        ]
+    )
 
 
 def routine_shift_choice_menu(routine_date) -> InlineKeyboardMarkup:

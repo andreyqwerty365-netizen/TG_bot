@@ -124,6 +124,7 @@ class BotApp:
         app.add_handler(CommandHandler("cancel", partial(self.trainer.command_cancel, self)))
         app.add_handler(CallbackQueryHandler(partial(callbacks.on_button, self)))
         app.add_handler(MessageHandler(filters.VOICE, partial(messages.on_voice, self)))
+        app.add_handler(MessageHandler(filters.PHOTO, partial(messages.on_photo, self)))
         app.add_handler(MessageHandler(filters.Document.ALL, partial(messages.on_document, self)))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, partial(messages.on_text, self)))
         app.post_init = self.post_init

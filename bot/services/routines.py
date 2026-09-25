@@ -19,6 +19,8 @@ def find_routine_day(db: Database, chat_id: int, now_utc: datetime) -> RoutineDa
     started = db.get_latest_routine_day_start(chat_id)
     if started is None or started.started_at > now_utc:
         return None
+    if started.ended_at is not None and started.ended_at <= now_utc:
+        return None
     wake_local = to_local(started.started_at, db.get_chat_settings(chat_id).tz_offset_minutes)
     return RoutineDayContext(started.routine_date, started.shift_type, wake_local)
 
