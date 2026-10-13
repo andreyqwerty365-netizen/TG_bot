@@ -406,3 +406,5 @@ def test_delivery_crossing_profile_midnight_is_counted_on_actual_send_day(servic
     with factory() as s:
         attempt = s.scalar(select(Attempt))
         assert attempt.local_day == date(2026, 10, 14) and attempt.started_at == clock()
+        repeat = s.scalar(select(Job).where(Job.kind == "repeat"))
+        assert repeat.run_at - attempt.started_at == timedelta(hours=4)

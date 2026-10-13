@@ -166,7 +166,7 @@ class Worker:
             except DeliveryError:
                 attempt.outcome = "error"
                 job.status = "pending" if job.attempts < self.max_attempts else "failed"
-                job.run_at = now + timedelta(seconds=60 * job.attempts)
+                job.run_at = attempt.started_at + timedelta(seconds=60 * job.attempts)
             except Exception:
                 attempt.outcome, job.status = "unknown", "unknown"
             job.lease_token, job.lease_until = None, None
@@ -177,7 +177,7 @@ class Worker:
                     id=uid(), owner_id=job.owner_id, reminder_id=job.reminder_id,
                     reminder_version=job.reminder_version, kind="repeat",
                     dedupe_key=f"repeat:{job.reminder_id}:{job.reminder_version}",
-                    run_at=now + timedelta(hours=4), status="pending", attempts=0,
+                    run_at=attempt.started_at + timedelta(hours=4), status="pending", attempts=0,
                 ).on_conflict_do_nothing())
             return job.status
 
