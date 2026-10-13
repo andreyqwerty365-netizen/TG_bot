@@ -1,0 +1,58 @@
+name: personal-crm
+x-crm-build: &crm-build
+  context: .
+  additional_contexts:
+    crm_wheels: ./.runtime/wheels
+services:
+  crm-db:
+    image: postgres:16.10
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_DB: personal_crm
+      POSTGRES_PASSWORD: ${CRM_DB_PASSWORD:?Set a local PostgreSQL password}
+    ports:
+      - "127.0.0.1:${CRM_DB_PORT:-55433}:5432"
+    volumes:
+      - crm-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d personal_crm"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  crm-migrate:
+    build: *crm-build
+    image: personal-crm:dev
+    environment:
+      CRM_DATABASE_URL: ${CRM_DATABASE_URL:?Set PostgreSQL psycopg URL for crm-db}
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      crm-db:
+        condition: service_healthy
+  crm-api:
+    build: *crm-build
+    image: personal-crm:dev
+    restart: unless-stopped
+    environment:
+      CRM_DATABASE_URL: ${CRM_DATABASE_URL}
+      CRM_OWNER_ID: ${CRM_OWNER_ID:-}
+      CRM_OWNER_TOKEN: ${CRM_OWNER_TOKEN:-}
+      CRM_FAKE_MAIL_TOKEN: ${CRM_FAKE_MAIL_TOKEN:-}
+      CRM_TIMEZONE: ${CRM_TIMEZONE:-}
+    ports:
+      - "127.0.0.1:${CRM_API_PORT:-8001}:8000"
+    depends_on:
+      crm-migrate:
+        condition: service_completed_successfully
+  crm-worker:
+    build: *crm-build
+    image: personal-crm:dev
+    restart: unless-stopped
+    environment:
+      CRM_DATABASE_URL: ${CRM_DATABASE_URL}
+    command: ["python", "-m", "personal_crm.worker"]
+    depends_on:
+      crm-migrate:
+        condition: service_completed_successfully
+volumes:
+  crm-postgres:
