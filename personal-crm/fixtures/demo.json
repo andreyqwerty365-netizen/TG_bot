@@ -1,0 +1,5 @@
+{
+  "Подготовить синтетический отчёт": {"operation": "create", "kind": "task", "title": "Подготовить синтетический отчёт", "obvious": true},
+  "Пожалуйста, проверьте учебный документ": {"operation": "create", "kind": "task", "title": "Проверить учебный документ", "obvious": true},
+  "Обещали прислать учебный файл": {"operation": "create", "kind": "waiting", "title": "Дождаться учебного файла", "obvious": true}
+}
