@@ -130,7 +130,7 @@ Python 3.12, PostgreSQL 16.10 в отдельном контейнере, Docker
 
     CRM_TEST_DATABASE_URL=postgresql+psycopg://crm_test@127.0.0.1:55432/personal_crm_test .venv/bin/python -m pytest -q
 
-Фактически выполнены **42 теста, без skipped/xfail** на PostgreSQL. Есть одно предупреждение DeprecationWarning совместимости Starlette TestClient/AnyIO, не ошибка тестов. Набор включает upgrade/downgrade/upgrade/check Alembic и реальное ограничение PostgreSQL, откатывающее изменение task/history/job одной транзакцией. Миграционный downgrade проверялся только на disposable test DB.
+Фактически выполнены **42 теста, без skipped/xfail, 5.06s** на PostgreSQL. Есть одно предупреждение DeprecationWarning совместимости Starlette TestClient/AnyIO, не ошибка тестов. Набор включает upgrade/downgrade/upgrade/check Alembic и реальное ограничение PostgreSQL, откатывающее изменение task/history/job одной транзакцией. Миграционный downgrade проверялся только на disposable test DB.
 
     CRM_DATABASE_URL=postgresql+psycopg://crm_test@127.0.0.1:55432/personal_crm_test .venv/bin/python -m personal_crm.demo
 
@@ -141,3 +141,5 @@ Dемо проходит: source_persisted, duplicate_applied_once, fake_deliver
 Из корня репозитория `/workspace/.tg-bot-venv/bin/python tools/run_tests.py -q`: **133 passed in 1.37s**. Корневой бот не запускался. Изменения source/config/test файлов только внутри personal-crm.
 
 Не выполнены: настоящие внешние каналы, paid OpenAI, независимый корпус 120 примеров, нагрузочные SLO/p95, production-миграция, encrypted backup/restore и пилот. Непроверенные строки T18/T20/T24/T26/T27, O-T02/O-T06 сохранены как «Не проверено». Для T19/T21/T23/T25 отмечены только достигнутые части.
+
+После финальной сборки выполнены настоящий `docker compose restart crm-db` и повторный HTTP smoke. PostgreSQL сохранила выполненную задачу, успешную delivery attempt и отменённый repeat; worker/API восстановили подключение. Демо выполнено два раза подряд с новой синтетической областью каждого запуска, оба успешны. Изоляция diff и secret scan подтверждены перед коммитом. Ветка `codex/personal-crm-core` отправлена в GitHub; создание PR через GraphQL API не выполнено из-за ответа Forbidden (403).
