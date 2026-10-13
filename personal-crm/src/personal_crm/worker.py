@@ -1,6 +1,6 @@
 import argparse
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, or_, select
@@ -10,7 +10,9 @@ from sqlalchemy.dialects.postgresql import insert
 from .adapters import DeliveryError, FakeTransport
 from .config import Settings
 from .db import sessions
-from .models import Attempt, Job, Profile, Proposal, Reminder, Task, uid, utcnow
+from .models import Attempt, Guidance, Job, Profile, Reminder, Task, uid, utcnow
+from .accompaniment import (guidance_text, new_guidance, overview, prepare,
+                            reconcile_uncertain_guidance, record_presentation, render_overview, resolve_guidance)
 from .policy import notification_allowed
 
 
@@ -52,11 +54,16 @@ class Worker:
             return None
         # All state-changing commands and deliveries use the same owner lock order.
         profile = s.scalar(select(Profile).where(Profile.id == identity.owner_id).with_for_update())
+        reconcile_uncertain_guidance(s, profile)
         reminder = task = None
         if identity.reminder_id:
             reference = s.get(Reminder, identity.reminder_id)
             task = s.scalar(select(Task).where(Task.id == reference.task_id).with_for_update())
             reminder = s.scalar(select(Reminder).where(Reminder.id == reference.id).with_for_update())
+        elif identity.guidance_id:
+            guide = s.get(Guidance, identity.guidance_id)
+            if guide.task_id:
+                task = s.scalar(select(Task).where(Task.id == guide.task_id).with_for_update())
         job = s.scalar(select(Job).where(Job.id == job_id).with_for_update().execution_options(populate_existing=True))
         if job.status != "leased" or job.lease_token != token or job.lease_until <= self.clock():
             return None
@@ -64,7 +71,35 @@ class Worker:
                          or reminder.version != job.reminder_version or task.version != reminder.task_version):
             job.status, job.lease_token, job.lease_until = "cancelled", None, None
             return None
+        if job.guidance_id:
+            guide = s.get(Guidance, job.guidance_id)
+            if not guidance_text(s, guide, self.clock()):
+                resolve_guidance(s, guide)
+                return None
+        if reminder and job.kind == "exact" and self.clock() - reminder.at > timedelta(seconds=profile.catchup_grace_seconds):
+            job.status, job.cancel_reason, job.lease_token, job.lease_until = "cancelled", "missed_after_outage", None, None
+            new_guidance(s, profile.id, "missed", f"missed:{job.id}", {"job_ids": [job.id]}, self.clock())
+            return None
         return job, profile, task
+
+    def _message(self, s, job, profile, task, ignore_attempt=None):
+        if job.kind == "digest":
+            view = overview(s, profile, self.clock(), ignore_attempt)
+            payload = {"main_ids": [t["id"] for t in view["main"]],
+                       "forgotten_ids": [t["id"] for t in view["forgotten"]],
+                       "guidance_ids": [g["id"] for g in view["guidance"]],
+                       "deadline_ids": [t["id"] for t in view["deadlines"]]}
+            return render_overview(view), payload, view
+        if job.guidance_id:
+            guide = s.get(Guidance, job.guidance_id)
+            view = {"forgotten": [], "guidance": [{"id": guide.id}]}
+            return guidance_text(s, guide, self.clock()), {"guidance_ids": [guide.id]}, view
+        text = task.title
+        if job.kind == "exact":
+            reminder = s.get(Reminder, job.reminder_id)
+            if self.clock() - reminder.at >= timedelta(minutes=1):
+                text = f"Опоздавшее напоминание: {text}"
+        return text, {"task_id": task.id, "task_version": task.version}, None
 
     def deliver(self, job_id, token):
         now = self.clock()
@@ -74,6 +109,8 @@ class Worker:
             if not locked:
                 return "stale"
             job, profile, task = locked
+            if s.scalar(select(Attempt.id).where(Attempt.job_id == job_id, Attempt.outcome == "pending")):
+                return "busy"
             if job.kind == "digest" and (not profile.timezone or
                 job.run_at.astimezone(ZoneInfo(profile.timezone)).date() !=
                 now.astimezone(ZoneInfo(profile.timezone)).date()):
@@ -86,20 +123,13 @@ class Worker:
                 job.status, job.lease_token, job.lease_until = "pending", None, None
                 job.run_at = now + timedelta(minutes=5)
                 return "limited"
-            if job.kind == "digest":
-                active = s.scalars(select(Task).where(Task.owner_id == job.owner_id,
-                    Task.state.in_(["active", "in_progress"])).order_by(Task.created_at).limit(3)).all()
-                proposal_count = len(s.scalars(select(Proposal.id).where(
-                    Proposal.owner_id == job.owner_id, Proposal.status == "pending")).all())
-                if not active and not proposal_count:
-                    job.status = "cancelled"
-                    return "empty"
-                text = "План: " + "; ".join(t.title for t in active) + f". Предложений: {proposal_count}"
-            else:
-                text = task.title
+            text, payload, view = self._message(s, job, profile, task)
+            if not text:
+                job.status = "cancelled"
+                return "empty"
             attempt = Attempt(job_id=job.id, owner_id=job.owner_id, kind=job.kind,
                               started_at=now, local_day=now.astimezone(ZoneInfo(profile.timezone)).date()
-                              if profile.timezone else None)
+                              if profile.timezone else None, payload=payload)
             s.add(attempt)
             s.flush()
             attempt_id = attempt.id
@@ -122,6 +152,14 @@ class Worker:
                 job.status, job.lease_token, job.lease_until = "pending", None, None
                 job.run_at = self.clock() + timedelta(minutes=5)
                 return "limited"
+            # Render again under locks: owner edits between intent and send cannot deliver stale text.
+            text, payload, view = self._message(s, job, profile, task, attempt_id)
+            if not text:
+                attempt.outcome, job.status = "cancelled", "cancelled"
+                return "empty"
+            attempt.payload = payload
+            attempt.started_at = self.clock()
+            attempt.local_day = attempt.started_at.astimezone(ZoneInfo(profile.timezone)).date() if profile.timezone else None
             try:
                 provider_id = self.transport.send(attempt.id, job.owner_id, text)
                 attempt.outcome, attempt.provider_id, job.status = "success", provider_id, "sent"
@@ -132,7 +170,9 @@ class Worker:
             except Exception:
                 attempt.outcome, job.status = "unknown", "unknown"
             job.lease_token, job.lease_until = None, None
-            if job.status == "sent" and job.kind in ("exact", "initiative"):
+            if attempt.outcome in ("success", "unknown") and view:
+                record_presentation(s, view, self.clock(), attempt.outcome)
+            if job.status == "sent" and job.reminder_id and job.kind in ("exact", "initiative"):
                 s.execute(insert(Job).values(
                     id=uid(), owner_id=job.owner_id, reminder_id=job.reminder_id,
                     reminder_version=job.reminder_version, kind="repeat",
@@ -142,22 +182,10 @@ class Worker:
             return job.status
 
     def ensure_digest(self):
-        now = self.clock()
-        with self.factory.begin() as s:
-            profiles = select(Profile).where(Profile.timezone.is_not(None))
-            if self.owner_id:
-                profiles = profiles.where(Profile.id == self.owner_id)
-            for profile in s.scalars(profiles):
-                local = now.astimezone(ZoneInfo(profile.timezone))
-                scheduled = datetime.combine(local.date(), datetime.min.time(), ZoneInfo(profile.timezone))
-                scheduled += timedelta(hours=profile.digest_hour)
-                s.execute(insert(Job).values(id=uid(), owner_id=profile.id, kind="digest",
-                    dedupe_key=f"digest:{local.date()}", run_at=scheduled,
-                    status="pending", attempts=0).on_conflict_do_nothing())
+        prepare(self.factory, self.clock(), self.owner_id, digest=True)
 
     def tick(self, digest=False):
-        if digest:
-            self.ensure_digest()
+        prepare(self.factory, self.clock(), self.owner_id, digest=digest)
         claimed = self.claim()
         return self.deliver(*claimed) if claimed else "idle"
 

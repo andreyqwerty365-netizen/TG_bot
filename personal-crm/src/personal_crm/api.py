@@ -1,4 +1,5 @@
 import hmac
+from datetime import date
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -10,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from .adapters import FixtureInterpreter
 from .config import Settings
 from .db import sessions
-from .models import Profile, Proposal, Source, SourceVersion, Task
+from .models import Guidance, History, Job, Profile, Proposal, Source, SourceVersion, Task
 from .schema import Deadline, Incoming, Strict
 from .service import CRMError, CRMService, snapshot
 
@@ -21,10 +22,13 @@ class Intake(Incoming):
 
 class Command(Strict):
     version: int = Field(gt=0)
-    action: Literal["close", "reminder", "deadline", "title"]
+    action: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus"]
     at: str | None = None
     deadline: Deadline | None = None
     title: str | None = Field(default=None, min_length=1, max_length=2000)
+    planned_on: date | None = None
+    return_on: date | None = None
+    focused: bool | None = None
 
 
 class Confirmation(Strict):
@@ -101,6 +105,35 @@ def create_app(settings=None, interpreter=None):
         with factory() as s:
             return [snapshot(t) for t in s.scalars(select(Task).where(Task.owner_id == owner))]
 
+    @app.get("/overview")
+    def owner_overview(owner=Depends(actor)):
+        return service.overview(owner)
+
+    @app.get("/tasks/{task_id}/history")
+    def history(task_id: str, owner=Depends(actor)):
+        with factory.begin() as s:
+            service.owner(s, owner)
+            service.task(s, owner, task_id)
+            return [{"id": h.id, "task_version": h.task_version, "actor": h.actor,
+                     "reason": h.reason, "before": h.before, "after": h.after}
+                    for h in s.scalars(select(History).where(History.task_id == task_id, History.owner_id == owner)
+                                      .order_by(History.created_at, History.task_version))]
+
+    @app.get("/deliveries")
+    def deliveries(owner=Depends(actor)):
+        with factory() as s:
+            return [{"id": j.id, "kind": j.kind, "status": j.status, "run_at": j.run_at,
+                     "cancel_reason": j.cancel_reason, "attempts": j.attempts}
+                    for j in s.scalars(select(Job).where(Job.owner_id == owner).order_by(Job.run_at))]
+
+    @app.get("/guidance")
+    def guidance(owner=Depends(actor)):
+        with factory() as s:
+            return [{"id": g.id, "task_id": g.task_id, "task_version": g.task_version,
+                     "kind": g.kind, "status": g.status, "payload": g.payload,
+                     "created_at": g.created_at, "delivered_at": g.delivered_at}
+                    for g in s.scalars(select(Guidance).where(Guidance.owner_id == owner).order_by(Guidance.created_at))]
+
     @app.get("/proposals")
     def proposals(owner=Depends(actor)):
         with factory() as s:
@@ -115,7 +148,8 @@ def create_app(settings=None, interpreter=None):
         except ValueError:
             raise HTTPException(422, "invalid_date")
         return service.command(owner, task_id, body.version, body.action,
-                               at=at, deadline=body.deadline, title=body.title)
+                               at=at, deadline=body.deadline, title=body.title, planned_on=body.planned_on,
+                               return_on=body.return_on, focused=body.focused)
 
     @app.post("/proposals/{proposal_id}/confirm")
     def confirm(proposal_id: str, body: Confirmation, owner=Depends(actor)):

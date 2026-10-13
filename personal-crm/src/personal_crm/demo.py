@@ -35,7 +35,7 @@ def main():
     factory = sessions(url)
     owner = f"demo-{uuid4().hex}"
     interpreter = FixtureInterpreter.from_file("fixtures/demo.json")
-    now = [datetime(2026, 10, 13, 8, tzinfo=UTC)]
+    now = [datetime.now(UTC)]
     clock = lambda: now[0]
     service = CRMService(factory, interpreter, clock)
     # Explicit synthetic profile, never a claimed timezone of the actual owner.

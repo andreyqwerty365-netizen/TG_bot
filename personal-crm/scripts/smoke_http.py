@@ -6,6 +6,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -64,4 +65,15 @@ call(f"/tasks/{task_id}/commands", {"version": 2, "action": "close"})
 with factory() as s:
     repeat = s.scalar(select(Job).join(Reminder).where(Reminder.task_id == task_id, Job.kind == "repeat"))
     assert repeat.status == "cancelled"
-print("HTTP smoke passed: readiness, owner auth, source, reminder, background fake delivery, close/cancel")
+planned = call("/sources", {"external_id": f"smoke-plan-{uuid4()}", "account": "synthetic-http",
+                            "text": "Подготовить синтетический отчёт"})["task"]
+today = datetime.now(ZoneInfo(os.environ["CRM_TIMEZONE"])).date()
+for offset in range(1, 5):
+    planned = call(f"/tasks/{planned['id']}/commands", {"version": planned["version"], "action": "plan",
+                  "planned_on": (today + timedelta(days=offset)).isoformat()})
+assert planned["plan_postponements"] == 3 and planned["deadline"] is None
+assert any(g["task_id"] == planned["id"] and g["kind"] == "obstacle" for g in call("/guidance"))
+assert len(call(f"/tasks/{planned['id']}/history")) == 5
+assert "main" in call("/overview")
+call(f"/tasks/{planned['id']}/commands", {"version": planned["version"], "action": "close"})
+print("HTTP smoke passed: readiness, owner auth, source, reminder, background fake delivery, close/cancel, plan, overview, history")

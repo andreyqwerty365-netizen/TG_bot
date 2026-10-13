@@ -67,3 +67,25 @@ def test_database_error_never_acknowledged(factory, interpreter, monkeypatch):
     assert response.status_code == 503 and response.json() == {"detail": "database_unavailable"}
     with factory() as s:
         assert s.scalar(select(func.count()).select_from(Task)) == 0
+
+
+def test_accompaniment_api_commands_overview_and_protected_history(factory, interpreter):
+    api = client(factory, interpreter)
+    headers = {"Authorization": "Bearer synthetic-owner-credential"}
+    task = api.post("/sources", json={"external_id": "planning", "account": "synthetic", "text": "synthetic task"},
+                    headers=headers).json()["task"]
+    endpoint = f'/tasks/{task["id"]}/commands'
+    task = api.post(endpoint, json={"version": 1, "action": "plan", "planned_on": "2026-10-20"}, headers=headers).json()
+    assert task["planned_on"] == "2026-10-20" and task["deadline"] is None
+    for day in (21, 22, 23):
+        task = api.post(endpoint, json={"version": task["version"], "action": "plan", "planned_on": f"2026-10-{day}"},
+                        headers=headers).json()
+    view = api.get("/overview", headers=headers).json()
+    assert view["guidance"][0]["kind"] == "obstacle"
+    assert api.get("/guidance", headers=headers).json()[0]["status"] == "pending"
+    assert len(api.get(f'/tasks/{task["id"]}/history', headers=headers).json()) == 5
+    for path in ("/overview", "/guidance", "/deliveries", f'/tasks/{task["id"]}/history'):
+        assert api.get(path).status_code == 401
+    assert api.get("/tasks/nonexistent/history", headers=headers).status_code == 404
+    assert api.post(endpoint, json={"version": task["version"], "action": "plan", "planned_on": "2026-02-30"},
+                    headers=headers).status_code == 422

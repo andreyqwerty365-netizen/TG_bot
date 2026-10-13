@@ -23,6 +23,22 @@ def test_migration_down_up_and_no_drift(factory):
         subprocess.run([sys.executable, "-m", "alembic", *args], env=env, check=True)
 
 
+def test_additive_upgrade_preserves_existing_core_records(factory):
+    env = {**os.environ, "CRM_DATABASE_URL": os.environ["CRM_TEST_DATABASE_URL"]}
+    subprocess.run([sys.executable, "-m", "alembic", "downgrade", "0d16c4d28de5"], env=env, check=True)
+    with factory.begin() as s:
+        s.execute(text("INSERT INTO profiles(id, timezone, digest_hour, initiative_limit) VALUES ('synthetic-migration-owner', 'UTC', 12, 2)"))
+        s.execute(text("INSERT INTO sources(id, owner_id, channel, account, external_id) VALUES ('migration-source','synthetic-migration-owner','owner','synthetic','one')"))
+        s.execute(text("INSERT INTO source_versions(id, source_id, revision, text, received_at, status) VALUES ('migration-version','migration-source',1,'Synthetic migrated task',CURRENT_TIMESTAMP,'processed')"))
+        s.execute(text("INSERT INTO tasks(id, owner_id, source_version_id, title, kind, state, version, created_at) VALUES ('migration-task','synthetic-migration-owner','migration-version','Synthetic migrated task','task','active',1,CURRENT_TIMESTAMP)"))
+    subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True)
+    with factory() as s:
+        task = s.get(Task, "migration-task")
+        assert task.title == "Synthetic migrated task" and task.state == "active" and task.version == 1
+        assert task.plan_postponements == 0 and task.focused is False
+        assert s.get(SourceVersion, "migration-version").text == "Synthetic migrated task"
+
+
 def test_task_history_queue_atomic_rollback(service, factory, clock):
     _, created = ingest(service)
     task_id = created["task"]["id"]

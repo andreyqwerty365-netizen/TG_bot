@@ -1,10 +1,11 @@
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from .models import History, Job, Profile, Proposal, Reminder, Source, SourceVersion, Task, uid, utcnow
+from .models import Guidance, History, Job, Profile, Proposal, Reminder, Source, SourceVersion, Task, uid, utcnow
 from .schema import Interpretation
 
 
@@ -14,6 +15,16 @@ class CRMError(Exception):
         super().__init__(code)
 
 
+@dataclass
+class CommandValues:
+    reminder_at: datetime | None = None
+    deadline: object | None = None
+    title: str | None = None
+    planned_on: date | None = None
+    return_on: date | None = None
+    focused: bool | None = None
+
+
 def snapshot(task):
     return {
         "id": task.id, "title": task.title, "kind": task.kind, "state": task.state,
@@ -21,6 +32,7 @@ def snapshot(task):
         "original_deadline": task.original_deadline,
         "planned_on": task.planned_on.isoformat() if task.planned_on else None,
         "return_on": task.return_on.isoformat() if task.return_on else None,
+        "focused": task.focused, "plan_postponements": task.plan_postponements,
     }
 
 
@@ -194,13 +206,14 @@ class CRMService:
             raise CRMError("version_conflict")
         return result
 
-    def command(self, owner_id, task_id, version, action, *, at=None, deadline=None, title=None):
+    def command(self, owner_id, task_id, version, action, *, at=None, deadline=None, title=None,
+                planned_on=None, return_on=None, focused=None):
         if at is not None and at.tzinfo is None:
             raise CRMError("timezone_required", 422)
         with self.factory.begin() as s:
             self.owner(s, owner_id)
             task = self.task(s, owner_id, task_id, version)
-            values = type("Values", (), dict(reminder_at=at, deadline=deadline, title=title))()
+            values = CommandValues(at.astimezone(UTC) if at else None, deadline, title, planned_on, return_on, focused)
             self._change(s, task, action, values, "explicit_command", uid())
             return snapshot(task)
 
@@ -219,17 +232,54 @@ class CRMService:
             task.deadline = values.deadline.model_dump() if values.deadline else None
         elif action == "title" and values.title:
             task.title = values.title
+        elif action == "cancel":
+            task.state = "cancelled"
+        elif action == "focus" and values.focused is not None:
+            task.focused = values.focused
+        elif action in ("plan", "defer"):
+            profile = s.get(Profile, task.owner_id)
+            if not profile.timezone:
+                raise CRMError("profile_timezone_required", 422)
+            today = self.clock().astimezone(ZoneInfo(profile.timezone)).date()
+            if action == "plan":
+                if not values.planned_on:
+                    raise CRMError("execution_date_required", 422)
+                if task.planned_on and values.planned_on > task.planned_on:
+                    task.plan_postponements += 1
+                task.planned_on = values.planned_on
+            else:
+                if not values.return_on or values.return_on <= today:
+                    raise CRMError("future_return_date_required", 422)
+                task.state, task.return_on = "deferred", values.return_on
+        elif action == "resume" and task.state == "deferred":
+            task.state, task.return_on = "active", None
         else:
             raise CRMError("forbidden_action", 422)
         task.version += 1
-        if action in ("close", "reminder"):
+        task.last_discussed_at = self.clock()
+        if action in ("close", "cancel", "defer", "reminder"):
             self._cancel(s, task)
             if action == "reminder":
                 self._schedule(s, task, values.reminder_at)
+            else:
+                self._cancel_guidance(s, task)
         else:
             # Existing reminder remains applicable to the explicitly revised task.
             s.execute(update(Reminder).where(Reminder.task_id == task.id, Reminder.active.is_(True))
                       .values(task_version=task.version))
+        if action == "plan":
+            ids = select(Reminder.id).where(Reminder.task_id == task.id)
+            s.execute(update(Job).where(Job.reminder_id.in_(ids), Job.kind == "repeat",
+                                       Job.status.in_(["pending", "leased"]))
+                      .values(status="cancelled", cancel_reason="execution_plan_changed", lease_token=None, lease_until=None))
+            if task.plan_postponements - task.obstacle_at_count >= 3:
+                from .accompaniment import new_guidance
+                self._cancel_guidance(s, task, kind="obstacle")
+                task.obstacle_at_count = task.plan_postponements
+                new_guidance(s, task.owner_id, "obstacle", f"obstacle:{task.id}:{task.plan_postponements}",
+                             {"postponements": task.plan_postponements}, self.clock(), task)
+        elif action == "deadline":
+            self._cancel_guidance(s, task, kind="overdue")
         self._history(s, task, before, "owner", reason, reference,
                       values.reminder_at.isoformat() if action == "reminder" else None)
 
@@ -247,6 +297,21 @@ class CRMService:
         s.execute(update(Reminder).where(Reminder.task_id == task.id).values(active=False))
         s.execute(update(Job).where(Job.reminder_id.in_(ids), Job.status.in_(["pending", "leased"]))
                   .values(status="cancelled", lease_token=None, lease_until=None))
+
+    @staticmethod
+    def _cancel_guidance(s, task, kind=None):
+        from .accompaniment import resolve_guidance
+        query = select(Guidance).where(Guidance.task_id == task.id, Guidance.status == "pending")
+        if kind:
+            query = query.where(Guidance.kind == kind)
+        for guide in s.scalars(query):
+            resolve_guidance(s, guide, "stale")
+
+    def overview(self, owner_id):
+        from .accompaniment import overview
+        with self.factory.begin() as s:
+            profile = self.owner(s, owner_id)
+            return overview(s, profile, self.clock())
 
     def _history(self, s, task, before, actor, reason, reference, reminder_at=None):
         after = snapshot(task)

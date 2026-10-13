@@ -20,14 +20,14 @@
 | T12 | Явная команда перенести напоминание | Без повторного подтверждения, дедлайн неизменен. | Ядро проверено — test_reminder_move_preserves_original_deadline, test_http_reminder_and_close; явная HTTP-команда |
 | T13 | ИИ предлагает перенести срок | До подтверждения действующие значения сохранены. | Ядро проверено — test_deadline_ai_change_is_pending_until_confirmation |
 | T14 | Запоздалое «да» после другой правки | Проверить версию и связь, не применить устаревшую правку. | Ядро проверено — test_untrusted_update_only_proposes_and_stale_confirmation; разговорное «да» не реализовано |
-| T15 | Лимит уведомлений | Одна сводка, не больше двух инициатив в сутки, минимум 4 часа между ними; явные точные напоминания по D04. | Частично: policy, резервирование параллельной инициативы и простая сводка — test_parallel_initiatives_reserve_budget_under_owner_lock, test_policy_gap_crosses_midnight_and_dst, test_digest_one_per_day_empty_and_stale |
+| T15 | Лимит уведомлений | Одна сводка, не больше двух инициатив в сутки, минимум 4 часа между ними; явные точные напоминания по D04. | Ядро проверено — notification cap/gap, test_parallel_initiatives_reserve_budget_under_owner_lock, test_four_week_simulation_keeps_rotation_and_daily_budget, test_delivery_crossing_profile_midnight_is_counted_on_actual_send_day |
 | T16 | Нет ответа на напоминание | Не больше одного повтора через 4 часа при актуальности и свободном лимите. | Ядро проверено — test_send_restart_repeat_once_and_close, test_exact_exempt_repeat_consumes_limit |
 | T17 | Выполнение до повтора | Старый повтор не отправляется. | Ядро проверено — test_close_before_repeat_cancels, test_close_before_initial_send_cancels |
-| T18 | Три переноса плана выполнения | Один раз предложить разбор, переносы уведомлений не засчитываются. | Не проверено |
-| T19 | Просрочка | Исходный срок сохранён, нет одинакового отдельного предупреждения каждый день. | Частично: исходный срок сохранён — test_reminder_move_preserves_original_deadline; отдельное предупреждение просрочки не реализовано |
+| T18 | Три переноса плана выполнения | Один раз предложить разбор, переносы уведомлений не засчитываются. | Ядро проверено — test_plan_moves_count_without_changing_deadline, test_obstacle_prompt_once_not_daily_and_no_auto_state_change; вопрос не выбирает действие за владельца |
+| T19 | Просрочка | Исходный срок сохранён, нет одинакового отдельного предупреждения каждый день. | Ядро проверено — test_overdue_announcement_once_and_original_deadline_retained, test_full_initiative_budget_reports_overdue_in_digest_once, test_reminder_move_preserves_original_deadline |
 | T20 | Регулярная задача | Закрытие экземпляра не отменяет следующие периоды. | Не проверено |
-| T21 | Перезапуск/остановка обработчика | Сохранённые задания восстанавливаются, устаревшее не отправляется массово. | Частично: рестарт процесса, lease/fencing, SKIP LOCKED и parse recovery — test_lease_recovery_and_fencing_old_worker, test_postgres_skip_locked_claims_other_job, test_interpretation_lease_recovered; объединение накопленного backlog не реализовано |
-| T22 | Неопределённый исход отправки | Честное состояние, не бесконечные повторы. | Ядро проверено — test_delivery_uncertainty_stops_retries, test_crash_with_pending_attempt_marked_unknown, test_known_failure_has_bounded_retries |
+| T21 | Перезапуск/остановка обработчика | Сохранённые задания восстанавливаются, устаревшее не отправляется массово. | Ядро проверено — lease/fencing/SKIP LOCKED, test_outage_consolidates_old_exact_reminders_and_keeps_tasks, test_two_workers_consolidate_one_outage_report; реальные каналы не подключены |
+| T22 | Неопределённый исход отправки | Честное состояние, не бесконечные повторы. | Ядро проверено — bounded retries/unknown, test_crash_during_digest_reservation_does_not_resend_one_time_question, test_closing_after_crashed_intent_keeps_unknown_outcome_instead_of_pending_forever |
 | T23 | Пояс с сезонным переводом времени | Даты и сводка по политике профиля, без дублей; неизвестный пояс не заменяется серверным. | Частично: IANA-дата и DST/межполуночный интервал policy — test_policy_gap_crosses_midnight_and_dst; миграция пояса/относительные даты не реализованы |
 | T24 | Отозван почтовый доступ | Видна ошибка синхронизации, не ложное «новых дел нет». | Не проверено |
 | T25 | Достигнут бюджет ИИ | Новые платные обращения блокируются, базовые задачи/напоминания работают. | Частично: платные вызовы полностью отключены — test_no_real_ai_calls; реальный бюджетный шлюз не реализован |
@@ -92,14 +92,14 @@ Fake-модель проверяет маршрутизацию и полити�
 | R08 | Черновые подшаги не реализованы. |
 | R09 | Подтверждение предложенных reminder/deadline есть; адаптация и ручной экран настроек не реализованы. |
 | R10 | Quiet hours отсутствуют; Worker/policy. Настоящей доставки нет. |
-| R11 | T15: простой digest и проверяемые cap/gap; полный подбор сводки не реализован. |
-| R12 | Полный ежедневный обзор дедлайнов и предложение раннего шага не реализованы. |
+| R11 | Три main, сроки, forgotten, waiting, proposals/guidance; T15. Внешняя доставка только fake. |
+| R12 | Все дедлайны присутствуют в полном overview, просрочка вычисляется отдельно. Предложения раннего выполнения/малого шага ещё не реализованы. |
 | R13 | Единственный repeat через 4 часа, T16–T17. |
-| R14 | Счётчик переносов плана/разбор препятствия не реализованы. |
-| R15 | Ротация забытых дел не реализована. |
-| R16 | Digest максимум три активных дела; все доступны GET /tasks. Ранжирование не реализовано. |
-| R17 | Отдельное однократное предупреждение просрочки не реализовано. |
-| R18 | Сохранённые reminders/repeat, T16/T21; долгосрочное сопровождение следующий этап. |
+| R14 | Счётчик поздних plan-переносов, один вопрос после каждых трёх; T18. Уменьшение шага автоматически не выполняется; разговорный ответ ещё не реализован. |
+| R15 | Ротация двух undated задач по успешному представлению/обсуждению; test_successful_digest_rotates_forgotten_manual_overview_changes_nothing и 28-дневная симуляция. |
+| R16 | Объяснимый порядок focus/сроки/просрочки/план/forgotten, main не больше трёх, полный обзор отдельно; test_overview_ranks_focus_preserves_all_deadlines_and_separate_dates. |
+| R17 | Одно событие согласованного срока, инициатива либо digest, далее только статус просрочки; T19. Unknown не даёт повторного объявления. |
+| R18 | Проверено 28 дней сохранённого сопровождения без ложного выполнения. Реальные каналы и разговорные ответы остаются следующими этапами. |
 | R19 | Интерфейс Interpreter и закрытый real_ai; внешние платные вызовы отсутствуют. Responses и бюджетный шлюз не реализованы. |
 
 ## Трассировка решений D01–D17
@@ -111,7 +111,7 @@ Fake-модель проверяет маршрутизацию и полити�
 | D03 | Единственный repeat через 4 часа; test_send_restart_repeat_once_and_close. |
 | D04 | Exact вне лимита, repeat внутри; test_exact_exempt_repeat_consumes_limit. |
 | D05 | Local day и межполуночный gap; test_policy_gap_crosses_midnight_and_dst. |
-| D06 | Перенос reminder не меняет deadline; T12. Счётчик переносов плана отсутствует. |
+| D06 | Счётчик только поздних переносов существующего planned_on; reminder и молчание не учитываются — test_plan_moves_count_without_changing_deadline. |
 | D07 | Fake-mail endpoint с отдельной аутентификацией; реальный ящик/папки не подключены. |
 | D08 | Почтовые 7 дней и checkpoints не реализованы. |
 | D09 | Digest показывает число pending proposals; приоритет срочного письма не реализован. |
@@ -140,6 +140,18 @@ Dемо проходит: source_persisted, duplicate_applied_once, fake_deliver
 
 Из корня репозитория `/workspace/.tg-bot-venv/bin/python tools/run_tests.py -q`: **133 passed in 1.37s**. Корневой бот не запускался. Изменения source/config/test файлов только внутри personal-crm.
 
-Не выполнены: настоящие внешние каналы, paid OpenAI, независимый корпус 120 примеров, нагрузочные SLO/p95, production-миграция, encrypted backup/restore и пилот. Непроверенные строки T18/T20/T24/T26/T27, O-T02/O-T06 сохранены как «Не проверено». Для T19/T21/T23/T25 отмечены только достигнутые части.
+Не выполнены: настоящие внешние каналы, paid OpenAI, независимый корпус 120 примеров, нагрузочные SLO/p95, production-миграция, encrypted backup/restore и пилот. В исходном ядре были непроверены T18/T20/T24/T26/T27, O-T02/O-T06. Текущая итерация закрыла проверки ядра T18/T19/T21; T20/T24/T26/T27 и O-T02/O-T06 остаются не проверены. T23/T25 остаются частичными.
 
 После финальной сборки выполнены настоящий `docker compose restart crm-db` и повторный HTTP smoke. PostgreSQL сохранила выполненную задачу, успешную delivery attempt и отменённый repeat; worker/API восстановили подключение. Демо выполнено два раза подряд с новой синтетической областью каждого запуска, оба успешны. Изоляция diff и secret scan подтверждены перед коммитом. Ветка `codex/personal-crm-core` отправлена в GitHub; создание PR через GraphQL API не выполнено из-за ответа Forbidden (403).
+
+## Фактическая проверка продолжения: сопровождение
+
+Из `personal-crm/` прежней командой pytest на PostgreSQL 16.10: **69 passed, 1 warning in 11.39s**, без skipped/xfail. Новые проверки в `tests/test_accompaniment.py` и дополнения API/transactions включают plan/defer/resume/cancel/focus, отказ без пояса, границу календарной даты, ротацию и ранжирование, один вопрос после трёх переносов, предупреждение просрочки в инициативе/сводке, неизвестный исход/потерянный intent, агрегирование простоя и два конкурирующих обработчика. При восстановлении ещё не отправленного старого срока событие используется повторно; уже объявленный либо неопределённый исход не повторяется.
+
+Миграция `9b0fd1794927_task_accompaniment` аддитивна. `test_additive_upgrade_preserves_existing_core_records` вставляет записи в схему предыдущего коммита, применяет upgrade и сверяет данные/defaults. Проверки down/up/check используют только disposable PostgreSQL; порядок удаления constraints/FK исправлен по фактическим сбоям первого прогона. `test_obstacle_and_plan_history_rollback_together` доказывает атомарность нового счётчика, вопроса и истории при отказе БД.
+
+    CRM_DATABASE_URL=postgresql+psycopg://crm_test@127.0.0.1:55432/personal_crm_test .venv/bin/python -m personal_crm.simulation
+
+Фактический результат: 28 дней, 28 разных ежедневных digests, 13 возвращённых undated задач, 1 объявление просрочки, 1 вопрос о препятствии, 3 пропуска в одном отчёте, 0 автоматических выполнений, 0 внешних вызовов. Сезонная смена времени включена в управляемые даты. Это симуляция, не четыре недели production-пилота и не измерение p95.
+
+Core demo повторно выполнено после дополнения схемы, все исходные assertions успешны. Обновлённый Compose собран и миграция применена к его сохранённым синтетическим данным. Настоящий HTTP smoke проверяет также plan, overview и history. Legacy: **133 passed in 1.11s**, secret scan прошёл. Изменения по-прежнему только в personal-crm; действующий бот/production не запускались.

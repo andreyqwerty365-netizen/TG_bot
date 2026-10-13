@@ -42,7 +42,10 @@ class Interpretation(Strict):
     reminder_at: datetime | None = None
     target_id: str | None = None
     target_version: int | None = Field(default=None, gt=0)
-    change: Literal["close", "reminder", "deadline", "title"] | None = None
+    change: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus"] | None = None
+    planned_on: date | None = None
+    return_on: date | None = None
+    focused: bool | None = None
 
     @field_validator("reminder_at")
     @classmethod
@@ -65,6 +68,12 @@ class Interpretation(Strict):
             raise ValueError("Reminder required")
         if self.change == "title" and not self.title.strip():
             raise ValueError("Title required")
+        if self.change == "plan" and not self.planned_on:
+            raise ValueError("Execution date required")
+        if self.change == "defer" and not self.return_on:
+            raise ValueError("Return date required")
+        if self.change == "focus" and self.focused is None:
+            raise ValueError("Focus value required")
         return self
 
 

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -26,9 +26,11 @@ class Profile(Base):
     timezone: Mapped[str | None] = mapped_column(String(64))
     digest_hour: Mapped[int] = mapped_column(default=12)
     initiative_limit: Mapped[int] = mapped_column(default=2)
+    catchup_grace_seconds: Mapped[int] = mapped_column(default=3600, server_default="3600")
     __table_args__ = (
         CheckConstraint("digest_hour BETWEEN 0 AND 23"),
         CheckConstraint("initiative_limit BETWEEN 0 AND 2"),
+        CheckConstraint("catchup_grace_seconds >= 0", name="ck_catchup_grace"),
     )
 
 
@@ -76,13 +78,19 @@ class Task(Base):
     version: Mapped[int] = mapped_column(default=1)
     original_deadline: Mapped[dict | None] = mapped_column(JSON)
     deadline: Mapped[dict | None] = mapped_column(JSON)
-    planned_on: Mapped[datetime | None] = mapped_column(Date)
-    return_on: Mapped[datetime | None] = mapped_column(Date)
+    planned_on: Mapped[date | None] = mapped_column(Date)
+    return_on: Mapped[date | None] = mapped_column(Date)
+    focused: Mapped[bool] = mapped_column(default=False, server_default="false")
+    plan_postponements: Mapped[int] = mapped_column(default=0, server_default="0")
+    obstacle_at_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    last_discussed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_presented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     __table_args__ = (
         CheckConstraint("kind IN ('task','waiting','note')"),
         CheckConstraint("state IN ('active','in_progress','deferred','done','cancelled')"),
         CheckConstraint("version > 0"),
+        CheckConstraint("plan_postponements >= 0 AND obstacle_at_count >= 0", name="ck_postponement_counts"),
     )
 
 
@@ -113,6 +121,25 @@ class History(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class Guidance(Base):
+    __tablename__ = "guidance"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), index=True)
+    task_version: Mapped[int | None] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16))
+    event_key: Mapped[str] = mapped_column(String(128))
+    payload: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint("owner_id", "event_key"),
+        CheckConstraint("kind IN ('obstacle','overdue','missed')", name="ck_guidance_kind"),
+        CheckConstraint("status IN ('pending','sent','unknown','resolved','stale')", name="ck_guidance_status"),
+    )
+
+
 class Reminder(Base):
     __tablename__ = "reminders"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
@@ -130,6 +157,7 @@ class Job(Base):
     owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
     reminder_id: Mapped[str | None] = mapped_column(ForeignKey("reminders.id"), index=True)
     reminder_version: Mapped[int | None] = mapped_column(Integer)
+    guidance_id: Mapped[str | None] = mapped_column(ForeignKey("guidance.id", name="fk_jobs_guidance"), index=True)
     kind: Mapped[str] = mapped_column(String(16))
     dedupe_key: Mapped[str] = mapped_column(String(128))
     run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
@@ -137,6 +165,7 @@ class Job(Base):
     lease_token: Mapped[str | None] = mapped_column(String(36))
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(default=0)
+    cancel_reason: Mapped[str | None] = mapped_column(String(32))
     __table_args__ = (
         UniqueConstraint("owner_id", "dedupe_key"),
         CheckConstraint("kind IN ('exact','initiative','repeat','digest')"),
@@ -155,4 +184,5 @@ class Attempt(Base):
     local_day: Mapped[datetime | None] = mapped_column(Date)
     outcome: Mapped[str] = mapped_column(String(16), default="pending")
     provider_id: Mapped[str | None] = mapped_column(String(128))
+    payload: Mapped[dict | None] = mapped_column(JSON)
     __table_args__ = (CheckConstraint("outcome IN ('pending','success','error','unknown','cancelled')"),)
