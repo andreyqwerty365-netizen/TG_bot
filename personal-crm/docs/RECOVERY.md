@@ -38,7 +38,7 @@ Schema/data, проверка counts всех таблиц, повторное �
 
 `restored_on_hold` означает сохранность дел/дат/источников/истории и блокировку профилей `recovery_hold`. HTTP возвращает `503 recovery_hold`, команды/Telegram ingest/разбор/mail/claim и доставка блокируются. Pending/leased jobs отменены с `restore_hold`; pending delivery attempts и reserved AI запросы становятся unknown. Уже unknown не повторяются. Незавершённые источники сохраняются с `restore_review_required`, без повторного платного разбора. Reminders неактивны, серии остановлены, ИИ приостановлен, почта отключена. Состояния самих дел и сроки сохраняются.
 
-Сверить export/counts, владельца и отказ чужому credential, несколько текстов/сроков/reminder moments, jobs/attempts/резервы. Затем при явно заданном `CRM_OWNER_ID`:
+Сверить export/counts, владельца и отказ чужому credential, несколько текстов/сроков/reminder moments, jobs/attempts/резервы. Для offline export проверки временно задать `CRM_DATABASE_URL` той же isolated целевой базы; `CRM_RESTORE_DATABASE_URL` сам по себе не переключает источник команды export. Затем при явно заданном `CRM_OWNER_ID`:
 
     python -m personal_crm.maintenance release-hold
 
