@@ -2,7 +2,7 @@
 
 ## Почта без подключения реального ящика, 14 октября 2026
 
-**197 CRM passed, 1 прежнее предупреждение Starlette/AnyIO, 48.53s** на PostgreSQL 16.10. **133 legacy passed, 8.55s**, бот не запускался. **6 React unit passed**, TypeScript/Vite build прошёл. **10 browser E2E passed, 21.8s** на desktop/mobile с настоящими HTTP/PostgreSQL; почтовый транспорт исключительно синтетический. Локальная фабрика для проверки явно отказывает вне test-БД и синтетического профиля.
+**197 CRM passed, 1 прежнее предупреждение Starlette/AnyIO, 48.53s** на PostgreSQL 16.10. **133 legacy passed, 8.55s**, бот не запускался. **6 React unit passed**, TypeScript/Vite build прошёл. **10 browser E2E passed, 19.6s** после перезапуска опубликованного кода, на desktop/mobile с настоящими HTTP/PostgreSQL; почтовый транспорт исключительно синтетический. Локальная фабрика для проверки явно отказывает вне test-БД и синтетического профиля.
 
 | Возможность | Доказательство |
 |---|---|
@@ -210,7 +210,7 @@ Fake-модель проверяет маршрутизацию и полити�
 | D12 | Текстовые draft_steps и proposal подтверждение plan есть; автоматического назначения дочерних задач нет. |
 | D13 | kind=note/task/waiting и отсутствие придуманного дедлайна; T02/T09. Общая классификация fake-моделью не доказана. |
 | D14 | Серверная привязка владельца, deny by default; T28. |
-| D15 | Настоящие AI/почта/Telegram отсутствуют; test_no_real_ai_calls. |
+| D15 | Реальные AI/почта/Telegram выключены. IMAP требует enabled+read consent до создания клиента; test_real_provider_is_disabled_before_any_network. Live/paid calls не выполнялись. |
 | D16 | Очистка обработанного кэша через 7 суток, ограниченный evidence остаётся с pending/accepted; необработанные источники сохраняются. test_irrelevant_cache_expires_but_evidence_remains, test_retention_does_not_destroy_an_unprocessed_source. |
 | D17 | Зашифрованные внешние backup/restore не реализованы. Рестарт PostgreSQL не равен восстановлению копии. |
 
