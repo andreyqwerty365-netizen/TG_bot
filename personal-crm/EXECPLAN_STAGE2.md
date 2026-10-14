@@ -16,7 +16,7 @@ An owner can submit a synthetic Telegram Update in Russian, get a committed task
 - [x] (2026-10-14) M2: implement official Responses Structured Outputs, strict configuration gates and PostgreSQL budget reservation/settlement/cache; add 120+ labelled synthetic examples.
 - [x] (2026-10-14) M4 validation: 124 CRM tests, 133 bot regression, official SDK mocks, core/Stage 2 demos, 28-day simulation and both local HTTP/Compose smokes passed. README, audit and acceptance matrix updated.
 - [x] (2026-10-14) M4 final stack: rebuilt final image, upgraded retained synthetic Compose database, restarted crm-db, reran both HTTP smokes, verified pre-restart completed Telegram task persisted.
-- [ ] M4 publication: push isolated implementation/validation commits, verify remote and clean working tree.
+- [x] (2026-10-14) M4 publication: implementation ac7af58 and validation ed8969298c184fe56f2c4ba4801a7c17896b08da pushed to codex/personal-crm-telegram-gpt. git ls-remote matched local HEAD; working tree was clean before this final progress entry.
 
 ## Surprises & Discoveries
 
@@ -32,7 +32,7 @@ Monthly cost accounting uses integer micro-USD and PostgreSQL row locks. A trust
 
 ## Outcomes & Retrospective
 
-M0–M3 implemented. Baseline rerun was 69 passed in 10.75s; final full suite is 124 passed, one Starlette/AnyIO deprecation warning in 19.15s on real PostgreSQL. Official SDK mocked HTTP checks passed; 144 labelled synthetic cases include 36 held out. Stage 2 demo passed with seven fake replies, one exact delivery and persisted clarification after a new service/engine. Recovery/unrelated-error dialogue tests passed. Legacy regression: 133 passed in 1.07s. Core demo, 28-day simulation and both HTTP/Compose smokes passed; final image/restart smoke and retained task check passed; publication is being completed. Real external NLP evaluation and real Telegram delivery are explicitly Not Run; they require separate user authorization, accounts and model/price choices.
+M0–M3 implemented. Baseline rerun was 69 passed in 10.75s; final full suite is 124 passed, one Starlette/AnyIO deprecation warning in 19.15s on real PostgreSQL. Official SDK mocked HTTP checks passed; 144 labelled synthetic cases include 36 held out. Stage 2 demo passed with seven fake replies, one exact delivery and persisted clarification after a new service/engine. Recovery/unrelated-error dialogue tests passed. Legacy regression: 133 passed in 1.07s. Core demo, 28-day simulation and both HTTP/Compose smokes passed; final image/restart smoke and retained task check passed; implementation and validation commits are published; all authorized M0–M4 work is complete. Real external NLP evaluation and real Telegram delivery are explicitly Not Run; they require separate user authorization, accounts and model/price choices.
 
 ## Context and Orientation
 
@@ -81,3 +81,7 @@ Revision 2026-10-14: recorded final 124/133 passing results, independent calenda
 Revision 2026-10-14: implementation committed as ac7af58. Final source rerun passed 124 tests in 19.15s; schema/source scope and credential-pattern scans passed for 32 files. SDK logging suppression now occurs after its import to override OPENAI_LOG before a request. Final Compose restart and publication remain pending.
 
 Revision 2026-10-14: final image d6810da built with checksum-verified locked wheels. Isolated PostgreSQL restarted; core and Stage 2 HTTP smokes both passed afterward, and an earlier completed synthetic Telegram task remains. Publication is the only pending step.
+
+Revision 2026-10-14: GitHub push succeeded (1de2f96..ed89692); remote branch hash matched ed8969298c184fe56f2c4ba4801a7c17896b08da. This final factual plan update is committed/pushed on the same branch. No merge, production receiver or external provider trial was performed.
+
+M0–M4 retrospective: the local result now runs from synthetic Russian Update through PostgreSQL interpretation/dialogue/task/reminder/reply to the existing durable worker. Immediate owner authority stays in server rules, model changes remain version-bound proposals, and budgets are enforced before HTTP. Official SDK transport mocks verify protocol/policy rather than semantic quality. 124 CRM and 133 legacy tests, both demos, 28-day simulation, final offline image and restart HTTP checks passed. Remaining separately authorized work is real-provider/quality evaluation, production integration, mail/UI/regularity, load SLO and encrypted restore; it is explicitly Not Run here.
