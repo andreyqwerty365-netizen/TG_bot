@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from .adapters import DeliveryError, FakeTransport
 from .config import Settings
 from .db import sessions
-from .models import Attempt, Guidance, Job, Profile, Reminder, Task, uid, utcnow
+from .models import Attempt, Guidance, Job, OutgoingReply, Profile, Reminder, Task, uid, utcnow
 from .accompaniment import (guidance_text, new_guidance, overview, prepare,
                             reconcile_uncertain_guidance, record_presentation, render_overview, resolve_guidance)
 from .policy import notification_allowed
@@ -83,6 +83,11 @@ class Worker:
         return job, profile, task
 
     def _message(self, s, job, profile, task, ignore_attempt=None):
+        if job.kind == "reply":
+            reply = s.get(OutgoingReply, job.reply_id)
+            if not reply or reply.owner_id != profile.id:
+                return None, {}, None
+            return reply.text, {"reply_id": reply.id, "source_version_id": reply.source_version_id}, None
         if job.kind == "digest":
             view = overview(s, profile, self.clock(), ignore_attempt)
             payload = {"main_ids": [t["id"] for t in view["main"]],
@@ -196,14 +201,19 @@ def main():
     parser.add_argument("--owner", help="Restrict to one synthetic profile")
     parser.add_argument("--no-digest", action="store_true")
     args = parser.parse_args()
-    worker = Worker(sessions(Settings.from_env().database_url), FakeTransport(), owner_id=args.owner)
+    settings = Settings.from_env()
+    from .telegram import TelegramTransport
+    transport = TelegramTransport(settings.telegram, settings.owner_id) if settings.telegram.send_enabled else FakeTransport()
+    worker = Worker(sessions(settings.database_url), transport,
+                    owner_id=args.owner or (settings.owner_id if settings.telegram.send_enabled else None))
     while True:
         try:
             result = worker.tick(digest=not args.no_digest)
         except SQLAlchemyError:
             # Do not print exception diagnostics: connection strings may contain secrets.
             result = "database_unavailable"
-        print(f"fake worker outcome={result}", flush=True)
+        channel = "test Telegram" if settings.telegram.send_enabled else "fake"
+        print(f"{channel} worker outcome={result}", flush=True)
         if args.once:
             if result == "database_unavailable":
                 raise SystemExit(1)

@@ -1,25 +1,57 @@
 # Приёмка Personal CRM
 
-Статус реализации 13 октября 2026 года: проверено первое изолированное ядро на настоящей PostgreSQL с контролируемыми fake-адаптерами. Частичная проверка не означает готовую Telegram/почтовую/OpenAI-интеграцию. Реальное качество модели не проверялось. Команды, результаты и границы приведены ниже.
+Актуальный Stage 2, 14 октября 2026 года: **124 passed, 1 warning in 19.15s** на настоящей PostgreSQL 16.10; включает прежние 69 и 55 новых проверок. **133 legacy passed in 1.07s**. Официальный SDK работает с mocked HTTP; live GPT/Telegram и независимая оценка NLP **Not Run**. Исторические результаты ядра ниже сохранены с датами.
+
+## Stage 2: пятнадцать обязательных сценариев
+
+| № | Реально выполненное доказательство | Граница результата |
+|---|---|---|
+| 1 | test_owner_exact_reminder_committed_without_second_confirmation; Stage 2 HTTP smoke | Одна задача + exact по IANA, без proposal; synthetic Update |
+| 2 | test_free_obligation_waiting_forward_old_relative_and_note_not_invented | Undated задача, прежние rotation tests/симуляция |
+| 3 | тот же тест | Forward request без исполнителя уточняется |
+| 4 | тот же тест; stage2_demo | Чужое обещание — waiting |
+| 5 | тот же тест; test_ambiguous_or_invalid_calendar_does_not_schedule | Старые relative, до пятницы/23 числа не получают угаданный срок |
+| 6 | test_existing_reminders_survive_disabled_ai_and_repeat_cancel; HTTP smoke | Source-bound completion, pending repeat отменён |
+| 7 | тот же тест; test_date_clarification_bound_across_restart_and_unrelated_input | Изменён reminder, исходный deadline сохранён |
+| 8 | test_completion_unique_subject_move_reminder_only_and_overview; прежние overview/policy tests | On-demand обзор не расходует инициативы |
+| 9 | test_model_proposal_yes_no_and_stale_object_binding; test_dialogue_expiry_and_stale_target_reject_change | Устаревший yes/date не переписывает task |
+| 10 | test_update_duplicate_message_repeat_forward_and_edits; test_replayed_update_resumes_after_source_receipt_commit_crash | Повтор receipt/revision идемпотентен, новая forward отдельна; replay восстанавливает pending source |
+| 11 | test_webhook_secret_user_chat_and_default_disabled; HTTP smoke | Bearer, constant-time secret, user/chat allowlist; нет данных при отказе |
+| 12 | test_sender_forward_injection_cannot_execute_commands; test_provider_schema_has_no_authority_or_arbitrary_actions; прежние mail/foreign-owner tests | Модель/forward не дают command authority |
+| 13 | test_provider_failures_preserve_source_and_do_not_retry; test_sdk_error_leaves_preexisting_queue_functional; test_existing_reminders_survive_disabled_ai_and_repeat_cancel | Disabled/refusal/incomplete/timeout/JSON/date/auth сохраняют source, reminders независимы |
+| 14 | test_concurrent_requests_cannot_overspend; test_80_100_thresholds_and_utc_month; test_missing_gate_never_constructs_sdk | PostgreSQL row locks, upper reservation, zero retries, cache; реальные траты не выполнялись |
+| 15 | Полный pytest 124; legacy 133; demo/simulation; scripts/smoke_http.py и smoke_stage2_http.py | Настоящие PostgreSQL, Docker/Uvicorn/worker; всё synthetic/fake/mocked |
+
+Дополнительно: долговечная дата/yes после нового service, 24-часовое expiry, несвязанная фраза включая parse error, bounded candidates, source trust при edit, reply на recorded bot message, голос без ложного анализа, plain-text getMe/sendMessage и unknown без resend. Calendar SDK значения сверяются с датой/часами источника независимо от корректности JSON. Новые plan/return/focus предложения применяются после yes; draft_steps не назначают обязательства.
+
+O-T01–O-T06/O-T08 закрыты на локальном стенде в объёме источников, политики, очереди, бюджета и mocked SDK/HTTP (соответственно строки 13/14/12/10). O-T07: secret поля repr=False, тексты ошибок ограничены кодами, SDK payload минимален, статический scan перед commit; настоящие private данные/провайдерские журналы/клиентская сборка не проверялись. O-T06 расход проверен консервативными synthetic ценами и concurrency, не счётом реального провайдера.
+
+Точная команда: `CRM_TEST_DATABASE_URL=postgresql+psycopg://crm_test@127.0.0.1:55432/personal_crm_test .venv/bin/python -m pytest -q --tb=short`. Baseline перед изменением: 69 passed in 10.75s. Предупреждение Starlette TestClient/AnyIO одно, без skipped/xfail. Миграционные down/up/check и сохранение прежних записей входят в набор; текущая Stage 2 миграция применена также к сохранённой отдельной Compose БД. Test-bot/AI параметры по умолчанию отключены.
+
+Демо ядра подтвердило отдельные процессы чтения/доставки, source/dedupe/mail/close. Stage 2 demo: fake_replies=7, fake_exact_delivery=1, durable dialogue, отменённый repeat. Simulation: 28 дней/28 digests/13 undated представлений/1 overdue/1 obstacle/3 consolidated missed jobs/0 automatic completions/0 external calls. Образ offline собран из 34 locked wheels с SHA256; оба настоящих HTTP smoke прошли после обновления схемы/контейнеров. Все команды запуска находятся в README, аудит в STAGE2_AUDIT.md.
+
+144 синтетических примера в fixtures/stage2_corpus.json, 108 development/36 held_out, документация разметки STAGE2_CORPUS.md. Корпус не прогонялся через реальную модель, показатели 95%/90% **Not Run**. Также Not Run: live Telegram/GPT/почта, нагрузочный p95, production migration/receiver switch, encrypted backup/restore, регулярные задачи, полный UI и production-пилот. Эти ограничения Stage 2 не выдаются за пройденную приёмку.
+
+Исторический статус ядра 13 октября 2026 года (актуальные доказательства Stage 2 ниже): проверено первое изолированное ядро на настоящей PostgreSQL с контролируемыми fake-адаптерами. Частичная проверка не означает готовую Telegram/почтовую/OpenAI-интеграцию. Реальное качество модели не проверялось. Команды, результаты и границы приведены ниже.
 
 ## Матрица исходных требований
 
 | ID | Проверка | Ожидаемое поведение | Статус |
 |---|---|---|---|
-| T01 | Однозначная задача одной фразой | Создаётся один раз без формы, подтверждение соответствует данным после commit. | Частично: fixture, commit — test_create_without_deadline_commits_history; настоящего свободного ввода нет |
+| T01 | Однозначная задача одной фразой | Создаётся один раз без формы, подтверждение соответствует данным после commit. | Stage 2: ограниченная русская грамматика — test_owner_exact_reminder_committed_without_second_confirmation, test_free_obligation_waiting_forward_old_relative_and_note_not_invented; общий NLP Not Run |
 | T02 | Задача без дедлайна | Сохраняется без выдуманной даты и обязательного вопроса о сроке. | Ядро проверено — test_create_without_deadline_commits_history |
 | T03 | Недостаточно контекста | Источник сохранён, задан существенный вопрос, другие сообщения принимаются. | Частично: fake-уточнение и независимый ввод — test_waiting_and_unknown_old_relative_date |
 | T04 | Сбой ИИ после получения | Источник не потерян, нет ложного «задача создана». | Ядро проверено — test_source_committed_before_failure_and_retry |
 | T05 | Сбой БД | Нет ложного подтверждения сохранения. | Ядро проверено — test_task_history_queue_atomic_rollback (реальный отказ PostgreSQL), test_database_error_never_acknowledged (HTTP ошибка) |
 | T06 | Повтор технического события | Нет второй задачи и повторного применения команды. | Ядро проверено — test_technical_dedup_and_account_scope, test_concurrent_source_retry_creates_once |
 | T07 | Повторная ручная пересылка похожего дела | Нет ошибочного объединения только по совпадению текста. | Ядро проверено — test_identical_manual_forwards_are_distinct |
-| T08 | Старая пересылка со словом «завтра» | Не рассчитывать срок от сегодняшнего дня; учесть оригинал и неоднозначность. | Частично: старый неизвестный текст уточняется — test_waiting_and_unknown_old_relative_date; разбор относительных дат не реализован |
-| T09 | Чужое обещание прислать документ | Ожидание или уточнение, не задача владельцу отправить документ. | Частично: controlled fixture waiting — test_waiting_and_unknown_old_relative_date; смысловой разбор не проверен |
+| T08 | Старая пересылка со словом «завтра» | Не рассчитывать срок от сегодняшнего дня; учесть оригинал и неоднозначность. | Stage 2: old relative forward уточняется, владелец использует received_at/IANA — test_free_obligation_waiting_forward_old_relative_and_note_not_invented, test_ambiguous_or_invalid_calendar_does_not_schedule |
+| T09 | Чужое обещание прислать документ | Ожидание или уточнение, не задача владельцу отправить документ. | Stage 2: ограниченная грамматика forward promise -> waiting; остальные сложные фразы требуют gated GPT/уточнение, качество GPT Not Run |
 | T10 | Новое обязательство из письма | Сначала предложение, активное дело только после подтверждения. | Ядро проверено — test_mail_only_proposal_confirmation_and_rejection; настоящий ящик не подключён |
 | T11 | Письмо/пересылка с командой удалить задачи | Не исполнять как команду владельца. | Ядро проверено — test_forbidden_model_operation_never_applied, test_untrusted_update_only_proposes_and_stale_confirmation |
 | T12 | Явная команда перенести напоминание | Без повторного подтверждения, дедлайн неизменен. | Ядро проверено — test_reminder_move_preserves_original_deadline, test_http_reminder_and_close; явная HTTP-команда |
 | T13 | ИИ предлагает перенести срок | До подтверждения действующие значения сохранены. | Ядро проверено — test_deadline_ai_change_is_pending_until_confirmation |
-| T14 | Запоздалое «да» после другой правки | Проверить версию и связь, не применить устаревшую правку. | Ядро проверено — test_untrusted_update_only_proposes_and_stale_confirmation; разговорное «да» не реализовано |
+| T14 | Запоздалое «да» после другой правки | Проверить версию и связь, не применить устаревшую правку. | Stage 2: durable yes + proposal/task version — test_model_proposal_yes_no_and_stale_object_binding, test_failed_unrelated_phrase_does_not_capture_old_unbound_yes |
 | T15 | Лимит уведомлений | Одна сводка, не больше двух инициатив в сутки, минимум 4 часа между ними; явные точные напоминания по D04. | Ядро проверено — notification cap/gap, test_parallel_initiatives_reserve_budget_under_owner_lock, test_four_week_simulation_keeps_rotation_and_daily_budget, test_delivery_crossing_profile_midnight_is_counted_on_actual_send_day |
 | T16 | Нет ответа на напоминание | Не больше одного повтора через 4 часа при актуальности и свободном лимите. | Ядро проверено — test_send_restart_repeat_once_and_close, test_exact_exempt_repeat_consumes_limit |
 | T17 | Выполнение до повтора | Старый повтор не отправляется. | Ядро проверено — test_close_before_repeat_cancels, test_close_before_initial_send_cancels |
@@ -28,9 +60,9 @@
 | T20 | Регулярная задача | Закрытие экземпляра не отменяет следующие периоды. | Не проверено |
 | T21 | Перезапуск/остановка обработчика | Сохранённые задания восстанавливаются, устаревшее не отправляется массово. | Ядро проверено — lease/fencing/SKIP LOCKED, test_outage_consolidates_old_exact_reminders_and_keeps_tasks, test_two_workers_consolidate_one_outage_report; реальные каналы не подключены |
 | T22 | Неопределённый исход отправки | Честное состояние, не бесконечные повторы. | Ядро проверено — bounded retries/unknown, test_crash_during_digest_reservation_does_not_resend_one_time_question, test_closing_after_crashed_intent_keeps_unknown_outcome_instead_of_pending_forever |
-| T23 | Пояс с сезонным переводом времени | Даты и сводка по политике профиля, без дублей; неизвестный пояс не заменяется серверным. | Частично: IANA-дата и DST/межполуночный интервал policy — test_policy_gap_crosses_midnight_and_dst; миграция пояса/относительные даты не реализованы |
+| T23 | Пояс с сезонным переводом времени | Даты и сводка по политике профиля, без дублей; неизвестный пояс не заменяется серверным. | Stage 2: relative/IANA и DST gaps/folds проверены — test_dst_gap_fold_and_unknown_timezone_ask; миграция пользовательского пояса остаётся отдельно |
 | T24 | Отозван почтовый доступ | Видна ошибка синхронизации, не ложное «новых дел нет». | Не проверено |
-| T25 | Достигнут бюджет ИИ | Новые платные обращения блокируются, базовые задачи/напоминания работают. | Частично: платные вызовы полностью отключены — test_no_real_ai_calls; реальный бюджетный шлюз не реализован |
+| T25 | Достигнут бюджет ИИ | Новые платные обращения блокируются, базовые задачи/напоминания работают. | Stage 2: PostgreSQL budget gate/80/100/concurrency с настоящим SDK и mocked HTTP — test_concurrent_requests_cannot_overspend, test_80_100_thresholds_and_utc_month; платных вызовов нет |
 | T26 | Миграция старого бота | Сверены записи/сроки/повторы, тренировки целы, нет двух отправителей. Производственную миграцию пока не выполнять. | Не проверено |
 | T27 | Восстановление копии | Данные/доступ/расписание проверены, нет массовой повторной отправки, учтены зарегистрированные удаления. | Не проверено |
 | T28 | Посторонний пользователь | Не читает и не меняет данные через бот или веб; пустая конфигурация владельца не открывает доступ. | Ядро проверено — test_owner_api_and_connector_authentication, test_missing_owner_fails_closed, test_object_owner_and_versions_checked, test_confirmation_other_owner_refused |
@@ -39,14 +71,14 @@
 
 | ID | Проверка | Ожидаемое поведение | Статус |
 |---|---|---|---|
-| O-T01 | Нет ключа | Существующие задачи доступны, напоминания работают. | Ядро проверено: fake-доставка без ключа — test_send_restart_repeat_once_and_close, test_no_real_ai_calls |
-| O-T02 | Ключ неверен/отозван | Ошибка без раскрытия секрета, источник сохранён. | Не проверено |
-| O-T03 | Ошибка/тайм-аут/отказ/неполный ответ | Нет ложного создания/изменения. | Частично: timeout/error fake-интерпретатора — test_source_committed_before_failure_and_retry; настоящие provider refusal/incomplete не проверены |
-| O-T04 | JSON валиден, смысл/дата/действие нет | Автоматическое применение блокируется. | Ядро проверено — test_invalid_date_keeps_source, test_forbidden_model_operation_never_applied |
-| O-T05 | Инструкция в письме изменить другие задачи | Не расширяет полномочия. | Ядро проверено — test_untrusted_update_only_proposes_and_stale_confirmation |
-| O-T06 | Исчерпан лимит | Новые платные запросы остановлены, напоминания продолжаются; параллельные запросы учитываются. | Не проверено |
-| O-T07 | Сборка и журналы | Ключ не попадает в исходники, клиентскую сборку и логи. | Частично: отсутствуют реальные ключи/клиентская сборка; статическая проверка и журналы fake worker, не provider SDK |
-| O-T08 | Технический дубль источника | Нет лишнего платного разбора/повторной операции. | Частично: счётчик fake-вызовов и повторного применения — test_technical_dedup_and_account_scope; платных вызовов нет |
+| O-T01 | Нет ключа | Существующие задачи доступны, напоминания работают. | Stage 2: test_missing_gate_never_constructs_sdk, test_sdk_error_leaves_preexisting_queue_functional; PostgreSQL + fake worker |
+| O-T02 | Ключ неверен/отозван | Ошибка без раскрытия секрета, источник сохранён. | Stage 2: unauthorized mocked SDK -> safe ai_auth_error, source persisted — test_provider_failures_preserve_source_and_do_not_retry |
+| O-T03 | Ошибка/тайм-аут/отказ/неполный ответ | Нет ложного создания/изменения. | Stage 2: timeout/refusal/incomplete/invalid JSON/source проверены реальным SDK с mocked HTTP, без ложного task ack |
+| O-T04 | JSON валиден, смысл/дата/действие нет | Автоматическое применение блокируется. | Stage 2: wrong_date/invented_time/command/foreign source отклоняются; test_calendar_values_verified_independently_of_valid_json |
+| O-T05 | Инструкция в письме изменить другие задачи | Не расширяет полномочия. | Stage 2 + ядро: forward/mail authority и foreign-owner tests; strict output не содержит command |
+| O-T06 | Исчерпан лимит | Новые платные запросы остановлены, напоминания продолжаются; параллельные запросы учитываются. | Stage 2: concurrent reservations, 80/100%, unknown charge/UTC month; очередь независима от API |
+| O-T07 | Сборка и журналы | Ключ не попадает в исходники, клиентскую сборку и логи. | Частично: synthetic-only secret scan/минимальный SDK payload/безопасные коды ошибок, реальные private журналы Not Run |
+| O-T08 | Технический дубль источника | Нет лишнего платного разбора/повторной операции. | Stage 2: source cache/SDK request count=1, Update duplicate, unknown no paid retry; всё mocked |
 
 ## Дополнительные проверки полноты переноса
 
@@ -82,14 +114,14 @@ Fake-модель проверяет маршрутизацию и полити�
 
 | ID | Реализация / доказательство / оставшийся объём |
 |---|---|
-| R01 | POST /sources, T01–T02; controlled fixture. Свободный русский Telegram-ввод следующий этап. |
-| R02 | channel=forward и отдельные external_id; T07. Реального приёмника нет. |
+| R01 | POST /sources, T01–T02; controlled fixture. Ограниченный русский Update-ввод в Stage 2; общее NLP Not Run. |
+| R02 | channel=forward и отдельные external_id; T07. Изолированный Update adapter есть, live receiver выключен и Not Run. |
 | R03 | obvious create либо предложение/уточнение; T03, T07. Смысловое качество не проверялось. |
 | R04 | mail всегда предложение; T10 и demo. |
 | R05 | Неизвестная fixture вызывает уточнение без блокировки другого ввода; T03. |
 | R06 | Любой propose_update ждёт подтверждения; T13–T14. |
-| R07 | Explicit HTTP commands исполняются сразу после проверки версии; T12, T17. Разговорный ввод не реализован. |
-| R08 | Черновые подшаги не реализованы. |
+| R07 | Explicit HTTP commands исполняются сразу после проверки версии; T12, T17. Ограниченные разговорные команды/версии проверены в Stage 2. |
+| R08 | draft_steps только текст: test_sdk_strict_payload_source_cache_and_drafts; дочерние обязательства не создаются. |
 | R09 | Подтверждение предложенных reminder/deadline есть; адаптация и ручной экран настроек не реализованы. |
 | R10 | Quiet hours отсутствуют; Worker/policy. Настоящей доставки нет. |
 | R11 | Три main, сроки, forgotten, waiting, proposals/guidance; T15. Внешняя доставка только fake. |
@@ -100,7 +132,7 @@ Fake-модель проверяет маршрутизацию и полити�
 | R16 | Объяснимый порядок focus/сроки/просрочки/план/forgotten, main не больше трёх, полный обзор отдельно; test_overview_ranks_focus_preserves_all_deadlines_and_separate_dates. |
 | R17 | Одно событие согласованного срока, инициатива либо digest, далее только статус просрочки; T19. Unknown не даёт повторного объявления. |
 | R18 | Проверено 28 дней сохранённого сопровождения без ложного выполнения. Реальные каналы и разговорные ответы остаются следующими этапами. |
-| R19 | Интерфейс Interpreter и закрытый real_ai; внешние платные вызовы отсутствуют. Responses и бюджетный шлюз не реализованы. |
+| R19 | Интерфейс Interpreter и закрытый real_ai; внешние платные вызовы отсутствуют. Responses strict SDK и PostgreSQL ledger реализованы, реальные вызовы/качество Not Run. |
 
 ## Трассировка решений D01–D17
 
@@ -116,8 +148,8 @@ Fake-модель проверяет маршрутизацию и полити�
 | D08 | Почтовые 7 дней и checkpoints не реализованы. |
 | D09 | Digest показывает число pending proposals; приоритет срочного письма не реализован. |
 | D10 | Внешний календарь не подключён; внутренние события следующий этап. |
-| D11 | Transport только fake; Telegram и web push отсутствуют. |
-| D12 | Подшаги и подтверждение плана не реализованы. |
+| D11 | Default fake; отдельный test-bot TelegramTransport проверен mocked HTTP, live/web push Not Run. |
+| D12 | Текстовые draft_steps и proposal подтверждение plan есть; автоматического назначения дочерних задач нет. |
 | D13 | kind=note/task/waiting и отсутствие придуманного дедлайна; T02/T09. Общая классификация fake-моделью не доказана. |
 | D14 | Серверная привязка владельца, deny by default; T28. |
 | D15 | Настоящие AI/почта/Telegram отсутствуют; test_no_real_ai_calls. |
@@ -155,3 +187,5 @@ Dемо проходит: source_persisted, duplicate_applied_once, fake_deliver
 Фактический результат: 28 дней, 28 разных ежедневных digests, 13 возвращённых undated задач, 1 объявление просрочки, 1 вопрос о препятствии, 3 пропуска в одном отчёте, 0 автоматических выполнений, 0 внешних вызовов. Сезонная смена времени включена в управляемые даты. Это симуляция, не четыре недели production-пилота и не измерение p95.
 
 Core demo повторно выполнено после дополнения схемы, все исходные assertions успешны. Обновлённый Compose собран и миграция применена к его сохранённым синтетическим данным. Настоящий HTTP smoke проверяет также plan, overview и history. Legacy: **133 passed in 1.11s**, secret scan прошёл. Изменения по-прежнему только в personal-crm; действующий бот/production не запускались.
+
+После сборки финального исходника выполнен `docker compose ... restart crm-db`; оба HTTP smoke повторно прошли. Проверено сохранение завершённой Telegram-задачи предыдущего smoke в той же отдельной БД. Это restart/persistence, не encrypted backup/restore. Scope и credential-pattern scans проверили все 32 изменённых файла относительно подготовленной ветки; только personal-crm/. `pip check` не обнаружил конфликтов зависимостей.

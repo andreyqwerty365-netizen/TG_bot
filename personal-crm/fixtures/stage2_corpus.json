@@ -1,0 +1,2743 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "real_model_evaluation": "Not Run",
+  "examples": [
+    {
+      "id": "undated-01",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Надо добавить игровой клуб в портфолио",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-02",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Нужно обновить учебное резюме",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-03",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Подготовить демонстрационный отчёт",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-04",
+      "split": "held_out",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Запиши дело: проверить макет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-05",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Хочу сделать страницу проекта",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-06",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Добавь задачу купить учебный блокнот",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-07",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Надо позвонить в вымышленный клуб",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-08",
+      "split": "held_out",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Нужно проверить тестовый архив",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-09",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Пора написать описание проекта",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-10",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Добавить синтетический проект в список дел",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-11",
+      "split": "development",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Сделать учебный прототип без срока",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "undated-12",
+      "split": "held_out",
+      "category": "undated",
+      "channel": "owner",
+      "text": "Запланируй дело: обновить шаблон",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-01",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "Завтра в 19:00 напомни обновить резюме",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-02",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "Сегодня в 20:15 напомни проверить макет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-03",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "Послезавтра в 09:00 напомни купить блокнот",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-04",
+      "split": "held_out",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "В субботу в 14:30 напомни подготовить отчёт",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-05",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "2026-11-04 в 11:00 напомни проверить архив",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-06",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "На завтра в 08:45 поставь напоминание про учебный клуб",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-07",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "Напомни завтра в 18:00 добавить проект",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-08",
+      "split": "held_out",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "В четверг в 16:00 напомни написать черновик",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-09",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "Сегодня в 22:00 хочу напоминание про шаблон",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-10",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "2026-12-01 в 10:20 напомни проверить прототип",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-11",
+      "split": "development",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "Послезавтра в 17:40 напомни проверить список",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "reminder-12",
+      "split": "held_out",
+      "category": "reminder",
+      "channel": "owner",
+      "text": "В воскресенье в 13:00 напомни подготовить страницу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_task_with_reminder",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-01",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Резюме обновил",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-02",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Последнее выполнил",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-03",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Перенеси напоминание на завтра",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-04",
+      "split": "held_out",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Перенеси последнее напоминание на субботу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-05",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Перенеси план на 2026-10-24",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-06",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Перенеси дедлайн на 2026-10-30",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-07",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Выполнил задачу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-08",
+      "split": "held_out",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Да",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_reminder_and_bound_question"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-09",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Нет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_reminder_and_bound_question"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-10",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "В субботу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_reminder_and_bound_question"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-11",
+      "split": "development",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Что на сегодня?",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "commands-12",
+      "split": "held_out",
+      "category": "commands",
+      "channel": "owner",
+      "text": "Отложи учебный отчёт до 2026-11-02",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "one_resume_task_with_reminder"
+      },
+      "label": {
+        "intent": "bound_owner_command",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-01",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Надо обнавить учебное резюме",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-02",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Нужна падготовка отчёта",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-03",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Надо дабавить проект в партфолио",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-04",
+      "split": "held_out",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Завтра в 19:00 напмни про резюме",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-05",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Надо прверить синтетический макет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-06",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Купить учбный блокнот",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-07",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Сделай напоминани про шаблон на завтра",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-08",
+      "split": "held_out",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Обновить резюме пжлст",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-09",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Надо написать чернвик описания",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-10",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Пазванить в вымышленный клуб",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-11",
+      "split": "development",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Ризюме обнавил",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "typos-12",
+      "split": "held_out",
+      "category": "typos",
+      "channel": "owner",
+      "text": "Пиренеси последнее напоминание на субботу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "recover_task_or_clarify",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-01",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Не надо обновлять резюме",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-02",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Я не обещал подготовить отчёт",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-03",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Пока не добавляй проект в портфолио",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-04",
+      "split": "held_out",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Не ставь напоминание на завтра",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-05",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Резюме ещё не обновил",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-06",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Я не выполнил задачу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-07",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Не переносить дедлайн отчёта",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-08",
+      "split": "held_out",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Об этом подумал, но делать не решил",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-09",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Не создавай задачу купить блокнот",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-10",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Отправлять документ не собираюсь",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-11",
+      "split": "development",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Напоминание пока не нужно",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "negations-12",
+      "split": "held_out",
+      "category": "negations",
+      "channel": "owner",
+      "text": "Нет, это не моя обязанность",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "no_new_obligation",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-01",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Я пришлю тебе договор",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-02",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Я отправлю учебный отчёт",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-03",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Мы подготовим макет для тебя",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-04",
+      "split": "held_out",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Пришлю шаблон, когда закончу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-05",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Обещаю передать тестовый архив",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-06",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Я проверю прототип и напишу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-07",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Я добавлю описание в документ",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-08",
+      "split": "held_out",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Мы вышлем синтетический список",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-09",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Верну учебный блокнот",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-10",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Приготовлю страницу проекта для тебя",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-11",
+      "split": "development",
+      "category": "promises",
+      "channel": "forward",
+      "text": "Я пришлю тебе черновик",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "promises-12",
+      "split": "held_out",
+      "category": "promises",
+      "channel": "forward",
+      "text": "От меня получишь тестовый файл",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_waiting",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-01",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Пожалуйста проверь учебный документ",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-02",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Надо добавить проект в список",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-03",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Сделай макет для учебного клуба",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-04",
+      "split": "held_out",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Проверь тестовый архив",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-05",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Кто-нибудь подготовьте отчёт",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-06",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Нужно обновить шаблон",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-07",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Просьба написать описание",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-08",
+      "split": "held_out",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Добавь страницу в портфолио",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-09",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Передайте учебный блокнот",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-10",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Надо позвонить в клуб",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-11",
+      "split": "development",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Нужно подготовить тестовый файл",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unknown_executor-12",
+      "split": "held_out",
+      "category": "unknown_executor",
+      "channel": "forward",
+      "text": "Пожалуйста отправь черновик",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_executor",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-01",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "Завтра пришли учебный отчёт",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-02",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "Сегодня проверь синтетический макет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-03",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "Послезавтра нужно отправить черновик",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-04",
+      "split": "held_out",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "В пятницу жду договор",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-05",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "До пятницы подготовь документ",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-06",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "Я пришлю договор завтра",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-07",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "На завтра назначили проверку",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-08",
+      "split": "held_out",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "Сегодня в 19:00 надо обновить резюме",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-09",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "Завтра утром открой архив",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-10",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "На субботу перенеси учебный проект",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-11",
+      "split": "development",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "Через два дня отправь шаблон",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "old_relative-12",
+      "split": "held_out",
+      "category": "old_relative",
+      "channel": "forward",
+      "text": "В следующую среду нужен список",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": "2026-09-01T08:00:00Z",
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_original_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-01",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Мне нравится учебный макет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-02",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Интересная мысль о дизайне клуба",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-03",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Сегодня хорошая погода",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-04",
+      "split": "held_out",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Это цитата из вымышленной книги",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-05",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Вчера видел необычный шаблон",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-06",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Портфолио бывает разным",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-07",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Сохрани заметку: синий цвет приятный",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-08",
+      "split": "held_out",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Тестовый архив выглядит аккуратно",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-09",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Это просто пример текста",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-10",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Ничего не требуется делать",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-11",
+      "split": "development",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Идея для будущего учебного проекта",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "no_obligation-12",
+      "split": "held_out",
+      "category": "no_obligation",
+      "channel": "owner",
+      "text": "Книга про вымышленный клуб интересная",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "create_note",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-01",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Обнови резюме и купи блокнот",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-02",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Подготовь отчёт и отправь шаблон",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-03",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Завтра напомни про резюме, а в пятницу про макет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-04",
+      "split": "held_out",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Закрой последнюю задачу и перенеси другую",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-05",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Добавь проект и проверь архив",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-06",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Запиши два дела: макет и отчёт",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-07",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Написать описание, затем позвонить в клуб",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-08",
+      "split": "held_out",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Купить блокнот и подготовить страницу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-09",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Резюме обновил, а отчёт пока не готов",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-10",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Перенеси план и поставь новое напоминание",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-11",
+      "split": "development",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Прочитать тестовый файл и написать черновик",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "two_actions-12",
+      "split": "held_out",
+      "category": "two_actions",
+      "channel": "owner",
+      "text": "Отложи прототип, но выполни макет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_multiple_actions",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-01",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Это сделал",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-02",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Перенеси это",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-03",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Да, по тому делу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-04",
+      "split": "held_out",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Сделай как раньше",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-05",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Ну его на завтра",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-06",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Обновил",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-07",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Закрой другое",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-08",
+      "split": "held_out",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Напомни об этом",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-09",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Там всё готово",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-10",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Отложи то",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-11",
+      "split": "development",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "Нет, не это",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "unclear_reference-12",
+      "split": "held_out",
+      "category": "unclear_reference",
+      "channel": "owner",
+      "text": "С этим закончил",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "two_tasks_no_reply_no_recent_question"
+      },
+      "label": {
+        "intent": "clarify_reference",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-01",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "Надо написать отчёт до пятницы",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-02",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "23 числа напомни обновить резюме",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-03",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "Завтра напомни про шаблон",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-04",
+      "split": "held_out",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "Надо проверить архив вечером",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-05",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "В пятницу к концу дня нужен макет",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-06",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "Перенеси дедлайн на 23 число",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-07",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "2026-03-29 в 02:30 напомни проверить файл",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Berlin",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-08",
+      "split": "held_out",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "2026-10-25 в 02:30 напомни обновить страницу",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Berlin",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-09",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "Напомни про отчёт в 29:00",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-10",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "На следующей неделе нужен черновик",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-11",
+      "split": "development",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "Поставь напоминание в начале месяца",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    },
+    {
+      "id": "ambiguous_date-12",
+      "split": "held_out",
+      "category": "ambiguous_date",
+      "channel": "owner",
+      "text": "Надо сдать отчёт до завтра",
+      "context": {
+        "received_at": "2026-10-13T08:00:00Z",
+        "timezone": "Europe/Moscow",
+        "original_at": null,
+        "scenario": "empty"
+      },
+      "label": {
+        "intent": "clarify_date",
+        "invent_deadline": false,
+        "external_commands_allowed": false,
+        "notes": "Детерминированная грамматика может честно уточнять; это ожидаемый смысл для будущей независимой оценки модели."
+      }
+    }
+  ]
+}

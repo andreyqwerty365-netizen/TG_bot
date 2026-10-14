@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 def notification_allowed(kind, now, timezone, events, limit=2):
     """Events include successful, uncertain and reserved deliveries; errors consume nothing."""
-    if kind == "exact":
+    if kind in ("exact", "reply"):
         return True
     if not timezone:
         return False

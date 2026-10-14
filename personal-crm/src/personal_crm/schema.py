@@ -33,7 +33,7 @@ class Deadline(Strict):
 
 class Interpretation(Strict):
     source_version_id: str
-    operation: Literal["create", "clarify", "propose_update"]
+    operation: Literal["create", "clarify", "propose_update", "command", "overview", "answer"]
     kind: Literal["task", "waiting", "note"] = "task"
     title: str = Field(default="", max_length=2000)
     obvious: bool = False
@@ -46,6 +46,10 @@ class Interpretation(Strict):
     planned_on: date | None = None
     return_on: date | None = None
     focused: bool | None = None
+    dialogue_id: str | None = None
+    accepted: bool | None = None
+    pending_action: dict | None = None
+    draft_steps: list[str] = Field(default_factory=list, max_length=12)
 
     @field_validator("reminder_at")
     @classmethod
@@ -62,8 +66,10 @@ class Interpretation(Strict):
         elif self.operation == "create":
             if not self.title.strip() or self.target_id or self.change:
                 raise ValueError("Invalid creation")
-        elif not self.target_id or not self.target_version or not self.change:
+        elif self.operation in ("propose_update", "command") and (not self.target_id or not self.target_version or not self.change):
             raise ValueError("Bound target and version required")
+        elif self.operation == "answer" and (not self.dialogue_id or self.accepted is None):
+            raise ValueError("Bound answer required")
         if self.change == "reminder" and not self.reminder_at:
             raise ValueError("Reminder required")
         if self.change == "title" and not self.title.strip():
