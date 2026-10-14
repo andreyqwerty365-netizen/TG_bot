@@ -1,5 +1,21 @@
 # Приёмка Personal CRM
 
+## Продолжение: шесть критических регрессий, 14 октября 2026
+
+Новый независимый прогон на Windows/Python 3.12/PostgreSQL 16.10: **145 passed, 1 прежнее предупреждение, 29.87s**. Включает все прежние 124 теста и 21 новый сценарий в `tests/test_continuation_regressions.py`. До исправлений воспроизведены ложное завершение, пропуск короткого времени, ограничение старых задач, неверное поле edit и заблокированный unbilled retry. Результаты предыдущих прогонов ниже остаются историческими.
+
+| Сценарий | Доказательство |
+|---|---|
+| «Резюме не обновил», «Резюме обновил?» и четыре варианта | `test_uncertain_completion_keeps_task_and_reminder`: задача, версия, reminder и история сохранены |
+| «в 19:00» после уточнения, рестарта и полуночи | `test_time_only_answer_uses_saved_date_after_restart_and_midnight`; неверные часы не теряют дату |
+| Поиск старого дела среди 111 задач | `test_subject_search_finds_old_task_beyond_65_rows`, `test_last_cursor_finds_old_reminder_outside_recent_candidates` |
+| Сбой до разбора, истечение lease, временная ошибка | `test_recovery_picks_pending_source_without_telegram_replay`, `test_recovery_reclaims_expired_parse_after_restart`, `test_transient_processing_failure_recovers_with_bounded_backoff`, `test_recovery_cli_runs_in_new_process` |
+| Edit времени и одновременная правка названия | `test_edit_reminder_changes_reminder_after_confirmation`, `test_edited_title_and_time_apply_together_only_after_confirmation` |
+| Неоплаченный отказ и потенциально оплаченный timeout | `test_known_unbilled_provider_error_allows_explicit_retry`, `test_rate_limit_automatically_retries_once_after_backoff`, `test_uncertain_paid_request_never_repeats_in_recovery` |
+| Ограниченные повторы и точная привязка вопроса | `test_permanent_processing_failure_stops_automatic_retries`, `test_explicit_reply_finds_question_beyond_context_cap` |
+
+Миграция `b63125ff910a` аддитивна; full pytest проверил down/up/check и сохранение старых записей. Core demo, Stage 2 demo, 28-дневная симуляция и pip check прошли. Настоящие Telegram/почта/GPT, production и Docker Compose на этой Windows-машине **Not Run**; никаких платных или внешних продуктовых вызовов не выполнялось.
+
 Актуальный Stage 2, 14 октября 2026 года: **124 passed, 1 warning in 19.15s** на настоящей PostgreSQL 16.10; включает прежние 69 и 55 новых проверок. **133 legacy passed in 1.07s**. Официальный SDK работает с mocked HTTP; live GPT/Telegram и независимая оценка NLP **Not Run**. Исторические результаты ядра ниже сохранены с датами.
 
 ## Stage 2: пятнадцать обязательных сценариев

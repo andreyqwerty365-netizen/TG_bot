@@ -147,8 +147,8 @@ def test_provider_failures_preserve_source_and_do_not_retry(factory, clock, mode
     service, adapter = setup(factory, clock, handler)
     source = save(service, text="Синтетический проект требует проверки 2026-10-23")
     assert service.process(OWNER, source)["code"] == code
-    assert service.process(OWNER, source)["code"] == "ai_previous_attempt"
-    assert len(calls) == 1
+    assert service.process(OWNER, source)["code"] == ("ai_auth_error" if mode == "unauthorized" else "ai_previous_attempt")
+    assert len(calls) == (2 if mode == "unauthorized" else 1)
     with factory() as s:
         assert s.get(SourceVersion, source).text
         assert s.scalar(select(func.count(Task.id))) == 0

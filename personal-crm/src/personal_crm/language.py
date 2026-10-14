@@ -74,6 +74,15 @@ def selected_question(context):
     return matches[0] if len(matches) == 1 else None
 
 
+def remember_date(action, phrase, context):
+    """Keep a successfully resolved day when only the clock is missing."""
+    try:
+        day = resolve_date_time(phrase, context, require_time=False)
+    except AmbiguousDate:
+        return action
+    return {**action, "resolved_date": day.isoformat()}
+
+
 def select_task(context, subject=None, last=False, reminders_only=False):
     if context.reply_source_id and context.candidates:
         # Context builder places an owned task linked to this source first; verify its provenance separately.
@@ -99,6 +108,10 @@ def select_task(context, subject=None, last=False, reminders_only=False):
 def deterministic(context):
     text = context.text.strip()
     lowered = text.lower().strip(" .!?")
+    # Preserve uncertainty before punctuation is normalized or a provider sees it.
+    if (context.channel == "owner" and re.search(r"\b(?:обновил|выполнил|сделал|закончил)\b", lowered)
+        and ("?" in text or re.search(r"\b(?:не|нет|ли|ещё|еще)\b", lowered))):
+        return question(context, "Выполнение не подтверждено; дело оставлено активным. Уточните действие, если хотите его изменить.")
     if context.unsupported_media:
         return question(context, "Источник сохранён. Голос, медиа и вложения не анализировались.")
     if context.channel == "owner" and lowered in {"да", "нет"}:
@@ -108,15 +121,24 @@ def deterministic(context):
                                   accepted=lowered == "да")
         return question(context, "Уточните, на какое предложение отвечаете; можно ответить на конкретное сообщение.")
     bound = selected_question(context) if context.channel == "owner" else None
-    if bound and bound.pending_action and re.fullmatch(r"(?:на |в )?(?:сегодня|завтра|послезавтра|" + "|".join(WEEKDAYS) + r"|\d{4}-\d{2}-\d{2})(?: в \d{1,2}:\d{2})?", lowered):
-        action = bound.pending_action
+    date_answer = re.fullmatch(r"(?:на |в )?(?:сегодня|завтра|послезавтра|" + "|".join(WEEKDAYS) + r"|\d{4}-\d{2}-\d{2})(?: в \d{1,2}:\d{2})?", lowered)
+    time_answer = re.fullmatch(r"(?:в )?\d{1,2}:\d{2}", lowered)
+    if bound and bound.pending_action and (date_answer or time_answer):
+        action = {k: v for k, v in bound.pending_action.items() if k != "resolved_date"}
+        phrase = lowered
+        if time_answer:
+            saved_day = bound.pending_action.get("resolved_date")
+            if not saved_day:
+                return question(context, "Уточните полную дату напоминания.", bound.pending_action, bound.id)
+            phrase = saved_day + " в " + lowered.removeprefix("в ")
         target = next((t for t in context.candidates if t.id == action.get("target_id")), None)
         wall = target.reminder_at.astimezone(ZoneInfo(context.timezone)).time().replace(tzinfo=None) if target and target.reminder_at and context.timezone else None
         try:
-            at = resolve_date_time(lowered, context, wall, action.get("change") not in ("plan", "deadline") or
+            at = resolve_date_time(phrase, context, wall, action.get("change") not in ("plan", "deadline") or
                                    (action.get("change") == "deadline" and bool(re.search(r"\d{1,2}:\d{2}", lowered))))
         except AmbiguousDate as error:
-            return question(context, str(error), action, bound.id)
+            pending = bound.pending_action if time_answer else remember_date(action, phrase, context)
+            return question(context, str(error), pending, bound.id)
         if action.get("change") == "deadline":
             temporal = {"deadline": Deadline(precision="instant" if isinstance(at, datetime) else "date",
                         value=at.isoformat(), original=text, timezone=context.timezone)}
@@ -148,7 +170,7 @@ def deterministic(context):
                 value = resolve_date_time(move.group(3), context, wall, change == "reminder" or
                                           (change == "deadline" and bool(re.search(r"\d{1,2}:\d{2}", move.group(3)))))
             except AmbiguousDate as error:
-                return question(context, str(error), pending)
+                return question(context, str(error), remember_date(pending, move.group(3), context))
             if change == "deadline":
                 temporal = {"deadline": Deadline(precision="instant" if isinstance(value, datetime) else "date",
                             value=value.isoformat(), original=text, timezone=context.timezone)}
@@ -162,7 +184,7 @@ def deterministic(context):
         try:
             at = resolve_date_time(remind.group(1), context)
         except AmbiguousDate as error:
-            return question(context, str(error), pending)
+            return question(context, str(error), remember_date(pending, remind.group(1), context))
         return Interpretation(source_version_id=context.source_version_id, **pending, reminder_at=at)
     if context.channel == "owner" and lowered.startswith("надо "):
         title = text[5:].strip(" .!?")

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from .models import (AIBudget, Conversation, Dialogue, Guidance, History, Job, OutgoingReply, Profile,
@@ -104,6 +104,8 @@ class CRMService:
             if source_version.status == "processing" and source_version.parse_until > now:
                 return {"status": "processing", "source_version_id": version_id}
             source_version.status = "processing"
+            source_version.parse_attempts += 1
+            source_version.retry_at = None
             source_version.parse_token = token
             source_version.parse_until = now + timedelta(minutes=1)
             text = source_version.text
@@ -135,6 +137,7 @@ class CRMService:
                 result = self._apply_interpretation(s, owner_id, source, version, output, trusted_rule, context)
                 self._finish_context(s, owner_id, source, version, output, result, trusted_rule)
                 version.status, version.result, version.error_code = "processed", result, None
+                version.retry_at = None
                 version.parse_token, version.parse_until = None, None
                 return result
         except Exception as error:
@@ -144,10 +147,12 @@ class CRMService:
                 version = s.scalar(select(SourceVersion).where(SourceVersion.id == version_id).with_for_update())
                 if version.parse_token == token:
                     allowed_codes = {"ai_disabled", "ai_consent_required", "ai_configuration_invalid", "ai_budget_limit",
-                                     "ai_previous_attempt", "ai_timeout", "ai_refusal", "ai_incomplete", "ai_invalid_output", "ai_auth_error"}
+                                     "ai_previous_attempt", "ai_timeout", "ai_refusal", "ai_incomplete", "ai_invalid_output", "ai_auth_error", "ai_rate_limit"}
                     code = getattr(error, "code", "interpretation_failed")
                     code = code if code in allowed_codes else "interpretation_failed"
                     version.status, version.error_code = "error", code
+                    if code in ("interpretation_failed", "ai_rate_limit") and version.parse_attempts < 3:
+                        version.retry_at = self.clock() + timedelta(seconds=60 * version.parse_attempts)
                     version.parse_token, version.parse_until = None, None
                     if hasattr(self.interpreter, "interpret_context"):
                         source = s.get(Source, version.source_id)
@@ -159,6 +164,22 @@ class CRMService:
                         cursor.last_source_version_id = version.id
                     self._reply(s, owner_id, version, {"status": "error"})
             return {"status": "error", "source_version_id": version_id, "code": version.error_code or "interpretation_failed"}
+
+    def recover_sources(self, owner_id, limit=16):
+        """Resume source-first commits without requiring a second channel delivery."""
+        with self.factory() as s:
+            identities = s.scalars(select(SourceVersion.id).join(Source).where(
+                Source.owner_id == owner_id,
+                or_(SourceVersion.status == "pending", and_(SourceVersion.status == "processing",
+                    SourceVersion.parse_until <= self.clock()), and_(SourceVersion.status == "error",
+                    SourceVersion.parse_attempts < 3, SourceVersion.retry_at <= self.clock()))
+            ).order_by(SourceVersion.received_at, SourceVersion.id).limit(limit)).all()
+        processed = 0
+        for identity in identities:
+            result = self.process(owner_id, identity)
+            if result["status"] not in ("error", "processing"):
+                processed += 1
+        return {"processed": processed}
 
     def _apply_interpretation(self, s, owner_id, source, version, output, trusted_rule=False, context=None):
         if output.operation in ("command", "answer", "overview"):
@@ -209,8 +230,9 @@ class CRMService:
                 SourceVersion.source_id == source.id, Task.owner_id == owner_id
             ))
             if existing:
+                change = ("reminder" if output.title == existing.title else "edit") if output.reminder_at else "title"
                 payload.update(operation="propose_update", target_id=existing.id,
-                               target_version=existing.version, change="title")
+                               target_version=existing.version, change=change)
                 proposal = Proposal(owner_id=owner_id, source_version_id=version.id,
                                     task_id=existing.id, expected_version=existing.version, payload=payload)
             elif source.channel != "mail" and output.obvious and (not output.reminder_at or (trusted_rule and source.channel == "owner")) and not (output.planned_on or output.return_on or output.focused is not None):
@@ -359,6 +381,8 @@ class CRMService:
             task.deadline = values.deadline.model_dump() if values.deadline else None
         elif action == "title" and values.title:
             task.title = values.title
+        elif action == "edit" and values.title and values.reminder_at:
+            task.title = values.title
         elif action == "cancel":
             task.state = "cancelled"
         elif action == "focus" and values.focused is not None:
@@ -384,9 +408,9 @@ class CRMService:
             raise CRMError("forbidden_action", 422)
         task.version += 1
         task.last_discussed_at = self.clock()
-        if action in ("close", "cancel", "defer", "reminder"):
+        if action in ("close", "cancel", "defer", "reminder", "edit"):
             self._cancel(s, task)
-            if action == "reminder":
+            if action in ("reminder", "edit"):
                 self._schedule(s, task, values.reminder_at)
             else:
                 self._cancel_guidance(s, task)
@@ -408,7 +432,7 @@ class CRMService:
         elif action == "deadline":
             self._cancel_guidance(s, task, kind="overdue")
         self._history(s, task, before, "owner", reason, reference,
-                      values.reminder_at.isoformat() if action == "reminder" else None)
+                      values.reminder_at.isoformat() if action in ("reminder", "edit") else None)
 
     def _schedule(self, s, task, at):
         reminder = Reminder(owner_id=task.owner_id, task_id=task.id,

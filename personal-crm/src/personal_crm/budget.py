@@ -60,19 +60,25 @@ class BudgetLedger:
             budget.limit_micro_usd = min(budget.limit_micro_usd, limit)
             existing = s.scalar(select(AIReservation).where(AIReservation.source_version_id == source_id))
             if existing:
-                if existing.owner_id != owner or existing.model != model:
+                if existing.owner_id != owner:
                     raise AIError("ai_previous_attempt")
-                if existing.status == "settled" and existing.output:
+                if existing.status == "settled" and existing.output and existing.model == model:
                     return existing.id, existing.output
-                raise AIError("ai_previous_attempt")
+                if existing.status != "failed" or existing.actual_micro_usd != 0:
+                    raise AIError("ai_previous_attempt")
             total = budget.spent_micro_usd + budget.reserved_micro_usd
             if total + amount > budget.limit_micro_usd:
                 raise AIError("ai_budget_limit")
             budget.reserved_micro_usd += amount
             budget.warning_80 = budget.warning_80 or (total + amount) * 100 >= budget.limit_micro_usd * 80
-            reservation = AIReservation(owner_id=owner, period=period, source_version_id=source_id,
-                                        model=model, amount_micro_usd=amount)
-            s.add(reservation)
+            # Only a provider rejection proven unbilled can reuse this source's slot.
+            # The current month, model, limit and full amount are checked again under lock.
+            reservation = existing or AIReservation(owner_id=owner, source_version_id=source_id)
+            reservation.period, reservation.model, reservation.amount_micro_usd = period, model, amount
+            reservation.status, reservation.actual_micro_usd = "reserved", None
+            reservation.error_code, reservation.output = None, None
+            if not existing:
+                s.add(reservation)
             s.flush()
             return reservation.id, None
 

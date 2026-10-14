@@ -58,6 +58,8 @@ class SourceVersion(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     error_code: Mapped[str | None] = mapped_column(String(32))
     parse_token: Mapped[str | None] = mapped_column(String(36))
+    parse_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     parse_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     result: Mapped[dict | None] = mapped_column(JSON)
     channel_metadata: Mapped[dict | None] = mapped_column(JSON)
