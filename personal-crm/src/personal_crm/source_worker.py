@@ -8,6 +8,7 @@ from .config import Settings
 from .db import sessions
 from .openai_adapter import ContextInterpreter, ResponsesAdapter
 from .service import CRMError, CRMService
+from .operations import record
 
 
 def main():
@@ -15,7 +16,7 @@ def main():
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     settings = Settings.from_env()
-    if not settings.owner_id or not settings.owner_token:
+    if not settings.owner_id:
         print("source worker outcome=owner_not_configured", flush=True)
         raise SystemExit(1)
     factory = sessions(settings.database_url)
@@ -25,7 +26,9 @@ def main():
         failed = False
         try:
             service.register(settings.owner_id, settings.timezone, initialize_only=True)
+            record(factory,settings.owner_id,'source','running')
             result = service.recover_sources(settings.owner_id)
+            record(factory,settings.owner_id,'source','idle')
             if time.monotonic() - last_prune >= 300:
                 from .mail import MailSync
                 MailSync(service, None).prune(settings.owner_id)
@@ -37,6 +40,10 @@ def main():
                 print(f"source worker processed={result['processed']}", flush=True)
         except (SQLAlchemyError, CRMError):
             failed = True
+            try:
+                record(factory,settings.owner_id,'source','error',error_code='source_unavailable')
+            except SQLAlchemyError:
+                pass
             print("source worker outcome=unavailable", flush=True)
         if args.once:
             if failed:

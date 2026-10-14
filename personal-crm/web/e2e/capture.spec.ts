@@ -1,0 +1,35 @@
+import { test,expect } from '@playwright/test';
+
+test('saved session survives reload and quick capture resolves a short answer',async({page,context},info)=>{
+  await page.goto('./');
+  await page.getByLabel('Пароль').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
+  await page.getByRole('button',{name:'Войти',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Сегодня',exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'Сегодня',exact:true})).toBeVisible();
+  await expect(page.getByLabel('Пароль')).not.toBeVisible();
+  expect((await context.cookies()).find(c=>c.name==='crm_local_session')?.httpOnly).toBe(true);
+  expect(await page.evaluate(()=>localStorage.length+sessionStorage.length)).toBe(0);
+  const title=`учебный документ ${info.project.name} ${Date.now()}`;
+  await page.getByLabel('Быстро записать дело').fill(`Завтра напомни проверить ${title}`);
+  await page.getByLabel('Быстро записать дело').press('Enter');
+  await expect(page.getByLabel('Ответ на вопрос')).toBeVisible();
+  await page.getByLabel('Ответ на вопрос').fill('в 19:00');
+  await page.getByRole('button',{name:'Ответить',exact:true}).click();
+  await expect(page.getByRole('status').first()).toContainText('Дело сохранено');
+  await page.getByRole('link',{name:'Все дела',exact:true}).click();
+  await page.getByLabel('Найти дело').fill(title);
+  await expect(page.getByRole('button',{name:`проверить ${title}`,exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'Сегодня',exact:true}).click();
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.screenshot({path:`test-results/${info.project.name}-capture.png`,fullPage:true});
+  await page.getByRole('link',{name:'Настройки',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Работа CRM',exact:true})).toBeVisible();
+  await expect(page.getByText(/^(Ожидает работу|Работает)$/)).toBeVisible();
+  await expect(page.getByText('Внешние копии выключены.',{exact:true})).toBeVisible();
+  await page.screenshot({path:`test-results/${info.project.name}-system.png`,fullPage:true});
+  await page.getByRole('button',{name:'Выйти',exact:true}).click();
+  await expect(page.getByLabel('Пароль')).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Пароль')).toBeVisible();
+});

@@ -204,16 +204,29 @@ def main():
     parser.add_argument("--no-digest", action="store_true")
     args = parser.parse_args()
     settings = Settings.from_env()
+    if settings.environment == 'production' and not settings.telegram.send_enabled:
+        print('Telegram worker outcome=disabled',flush=True)
+        return
     from .telegram import TelegramTransport
     transport = TelegramTransport(settings.telegram, settings.owner_id) if settings.telegram.send_enabled else FakeTransport()
     worker = Worker(sessions(settings.database_url), transport,
                     owner_id=args.owner or (settings.owner_id if settings.telegram.send_enabled else None))
+    from .operations import record
+    last_heartbeat=-30
     while True:
         try:
+            if worker.owner_id and time.monotonic()-last_heartbeat>=30:
+                record(worker.factory,worker.owner_id,'delivery','running')
+                last_heartbeat=time.monotonic()
             result = worker.tick(digest=not args.no_digest)
         except SQLAlchemyError:
             # Do not print exception diagnostics: connection strings may contain secrets.
             result = "database_unavailable"
+            if worker.owner_id:
+                try:
+                    record(worker.factory,worker.owner_id,'delivery','error',error_code='delivery_unavailable')
+                except SQLAlchemyError:
+                    pass
         channel = "test Telegram" if settings.telegram.send_enabled else "fake"
         print(f"{channel} worker outcome={result}", flush=True)
         if args.once:

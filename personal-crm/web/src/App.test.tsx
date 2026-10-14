@@ -11,6 +11,8 @@ function apiMock() {
   const calls: {path:string; body?:unknown}[] = [];
   vi.stubGlobal('fetch', vi.fn(async (path: string, init?: RequestInit) => {
     calls.push({path, body:init?.body ? JSON.parse(String(init.body)) : undefined});
+    if(path==='/auth/session')return {ok:false,status:401,json:async()=>({detail:'unauthorized'})};
+    if(path==='/auth/login')return {ok:true,status:200,json:async()=>({authenticated:true,csrf_token:'synthetic-csrf'})};
     let body: unknown = path.includes('/settings') ? prefs : path.includes('/projects') ? [] : path.includes('/inbox') ? { proposals: [], questions: [], errors: [] } :
       path === '/overview' ? { main: [task], deadlines: [], forgotten: [], waiting: [], proposals: [], guidance: [], other_count: 0 } :
       path.includes('/workspace/tasks?') ? {items:[task], total:1, offset:0, limit:30} : task;
@@ -24,7 +26,7 @@ test('authenticates before loading real task data and does not persist credentia
   apiMock();
   render(<App/>);
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText('Ключ доступа'), 'synthetic-web-secret');
+  await user.type(await screen.findByLabelText('Пароль'), 'synthetic-web-secret');
   await user.click(screen.getByRole('button', {name:'Войти'}));
   expect(await screen.findByText('Синтетическое дело')).toBeTruthy();
   expect(localStorage.length).toBe(0);
@@ -35,7 +37,7 @@ test('manual task form sends title and calendar fields to backend', async () => 
   const calls = apiMock();
   render(<App/>);
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText('Ключ доступа'), 'synthetic-web-secret');
+  await user.type(await screen.findByLabelText('Пароль'), 'synthetic-web-secret');
   await user.click(screen.getByRole('button', {name:'Войти'}));
   await screen.findByText('Синтетическое дело');
   await user.click(screen.getByRole('button', {name:'Добавить дело'}));
@@ -48,7 +50,7 @@ test('search sends query to server rather than filtering a local task copy', asy
   const calls = apiMock();
   render(<App/>);
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText('Ключ доступа'), 'synthetic-web-secret');
+  await user.type(await screen.findByLabelText('Пароль'), 'synthetic-web-secret');
   await user.click(screen.getByRole('button', {name:'Войти'}));
   await screen.findByText('Синтетическое дело');
   await user.click(screen.getByRole('link', {name:'Все дела'}));

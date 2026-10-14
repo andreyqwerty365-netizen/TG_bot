@@ -1,4 +1,9 @@
 .env
+**/*.env
+**/*.crmb
+**/*.crme
+**/*.crmx
+**/*.partial
 .venv
 .runtime
 __pycache__

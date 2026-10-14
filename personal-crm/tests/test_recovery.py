@@ -340,3 +340,39 @@ def test_erasure_binds_owner_identity_without_sql_or_line_interpretation(recover
     with factory() as s:
         assert s.get(Profile, unusual_owner) is None
         assert s.get(Profile, OWNER) is not None
+
+
+def test_restored_browser_sessions_are_revoked(recovery, service, factory, clock, tmp_path, pg_bin, target):
+    from personal_crm.models import WebSession
+    with factory.begin() as s:
+        s.add(WebSession(owner_id=OWNER,token_hash='a'*64,credential_version='b'*64,csrf_token='synthetic-csrf',
+                         created_at=clock.now,expires_at=clock.now+timedelta(days=30),revoked=False))
+    path,ledger = archive(recovery,factory,tmp_path,pg_bin,clock)
+    recovery.restore_backup(path,KEY,target,pg_bin,ledger)
+    restored=sessions(target)
+    with restored() as s:
+        assert s.get(WebSession,'a'*64).revoked
+    restored.kw['bind'].dispose()
+
+
+def test_pre_session_archive_restores_with_additive_session_schema(recovery, service, factory, clock, tmp_path, pg_bin, target):
+    import json
+    import struct
+    seed(service,factory,clock)
+    path,ledger=archive(recovery,factory,tmp_path,pg_bin,clock)
+    manifest,_=recovery._unpack(path,KEY)
+    dump=recovery._run(pg_bin,'pg_dump',['--format=custom','--no-owner','--no-acl','--schema=public',
+        '--exclude-table=public.web_sessions','--exclude-table=public.login_throttles','--exclude-table=public.worker_status'],os.environ['CRM_TEST_DATABASE_URL'])
+    manifest['schema_revision']='ca294b816edf'
+    manifest['dump_sha256']=__import__('hashlib').sha256(dump).hexdigest()
+    manifest['counts'].pop('web_sessions');manifest['counts'].pop('login_throttles')
+    manifest['counts'].pop('worker_status')
+    encoded=json.dumps(manifest).encode()
+    path.write_bytes(recovery.seal(struct.pack('!I',len(encoded))+encoded+dump,KEY,'backup'))
+    recovery.restore_backup(path,KEY,target,pg_bin,ledger)
+    restored=sessions(target)
+    with restored() as s:
+        assert s.scalar(text('SELECT version_num FROM alembic_version'))==recovery.SCHEMA
+        assert s.scalar(text('SELECT count(*) FROM web_sessions'))==0
+        assert s.scalar(select(Task.title))=='Synthetic task'
+    restored.kw['bind'].dispose()

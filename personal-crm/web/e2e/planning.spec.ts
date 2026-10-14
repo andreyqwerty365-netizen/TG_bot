@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const headers={Authorization:'Bearer '+(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local')};
 async function openTask(page:import('@playwright/test').Page,title:string){
-  await page.goto('./');await page.getByLabel('Ключ доступа').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
+  await page.goto('./');await page.getByLabel('Пароль').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
   await page.getByRole('button',{name:'Войти',exact:true}).click();
   await page.getByRole('link',{name:'Все дела',exact:true}).click();
   await page.getByLabel('Найти дело').fill(title);

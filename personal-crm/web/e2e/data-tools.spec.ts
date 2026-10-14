@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 test('downloads the authenticated PostgreSQL export from settings',async({page},info)=>{
   await page.goto('./');
-  await page.getByLabel('Ключ доступа').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
+  await page.getByLabel('Пароль').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
   await page.getByRole('button',{name:'Войти',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Сегодня',exact:true})).toBeVisible();
   await page.getByRole('link',{name:'Настройки',exact:true}).click();

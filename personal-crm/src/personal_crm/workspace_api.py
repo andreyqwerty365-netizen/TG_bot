@@ -36,6 +36,18 @@ class ManualTask(Strict):
         return value.strip()
 
 
+class Capture(Strict):
+    request_id: str = Field(min_length=1,max_length=128)
+    text: str = Field(min_length=1,max_length=16000)
+
+    @field_validator('text')
+    @classmethod
+    def meaningful_text(cls,value):
+        if not value.strip():
+            raise ValueError('Text required')
+        return value.strip()
+
+
 class TaskEdit(Strict):
     version: int = Field(gt=0)
     title: str | None = Field(default=None, min_length=1, max_length=2000)
@@ -121,6 +133,18 @@ def task_view(task, reminder=None):
 
 def install_workspace(app, service, settings, actor):
     factory = service.factory
+
+    @app.get('/workspace/system')
+    def system_status(owner=Depends(actor)):
+        from .operations import overview
+        from .recovery import BackupConfig
+        return overview(factory,owner,now=service.clock(),delivery_enabled=settings.telegram.send_enabled,
+                        backup_enabled=BackupConfig.from_env().enabled)
+
+    @app.post('/workspace/capture')
+    def capture(body: Capture,owner=Depends(actor)):
+        identity = service.ingest(owner,'owner',Incoming(account='web-capture',external_id=body.request_id,text=body.text))
+        return {'source_version_id':identity,'result':service.process(owner,identity)}
 
     @app.get("/workspace/export")
     def export_data(owner=Depends(actor)):

@@ -1,5 +1,7 @@
 # Personal CRM — дела, веб-интерфейс и сопровождение
 
+Подготовка первого личного запуска: сохранённый вход по паролю, быстрый ввод с уточнением, operational статус и opt-in encrypted S3 publication. [Размещение на VPS](docs/PILOT_DEPLOYMENT.md), [первые пять действий](docs/USER_GUIDE.md). Текущие проверки и ограничения — [ACCEPTANCE.md](docs/ACCEPTANCE.md); следующие шаги — [EXECPLAN_PILOT.md](EXECPLAN_PILOT.md). Реальная инфраструктура и аккаунты ещё не подключены.
+
 Резервирование и перенос: [RECOVERY.md](docs/RECOVERY.md). Добавлены AES-256-GCM PostgreSQL копии, ежедневный opt-in цикл/30-дневное хранение, восстановление только в пустую isolated базу с блокировкой отправок, внешний журнал удаления профилей, readonly rehearsal импорта SQLite и экспорт из настроек веба. Внешний носитель и production-перенос не настроены; реальный ящик по-прежнему отключён.
 
 Адаптивное приложение на React + TypeScript использует тот же FastAPI/PostgreSQL, что Telegram-ввод и постоянная очередь. Работают Сегодня, Все дела, Входящие, Проекты и Настройки: создание произвольных ручных задач без ИИ, поиск/фильтры/страницы, редактирование отдельных календарных полей, состояния, история, подтверждения и ответы на уточнения. Настройки пояса, сводки, инициатив, паузы ИИ и уменьшения бюджета сохраняются в PostgreSQL. Клиент не хранит отдельную базу задач; секреты интеграций в него не передаются.
@@ -17,7 +19,7 @@
     .venv\Scripts\python.exe -m alembic upgrade head
     .venv\Scripts\python.exe -m uvicorn personal_crm.api:create_app --factory --host 127.0.0.1 --port 8001
 
-Открыть `http://127.0.0.1:8001/app/` и ввести `CRM_OWNER_TOKEN`. На Linux использовать `.venv/bin/python`. Для непрерывной доставки/восстановления отдельно запустить `personal_crm.worker` и `personal_crm.source_worker`. Подробности разработки, отдельной синтетической E2E-базы и команды проверки — `web/README.md`. Перед Compose/Docker build выполнить frontend build: образ копирует готовый `web/dist`.
+Открыть `http://127.0.0.1:8001/app/` и ввести пароль, hash которого задан в `CRM_WEB_PASSWORD_HASH`; для localhost явно нужны `CRM_WEB_ORIGIN=http://127.0.0.1:8001` и `CRM_WEB_INSECURE_LOCALHOST=true`. Hash получить `python -m personal_crm.pilot_setup password-hash`. На Linux использовать `.venv/bin/python`. Для непрерывного разбора отдельно запустить `personal_crm.source_worker`; настоящая доставка включается отдельно. Подробности разработки и синтетической E2E-базы — `web/README.md`. Development Dockerfile копирует готовый `web/dist`; Dockerfile.production собирает React сам.
 
 Итоговый полный прогон: **165 CRM tests**, **133 legacy tests**, **3 React unit tests**, **8 browser E2E scenarios** на desktop/mobile. Проверены owner scope, конфликты, транзакции, миграции, браузерные защитные заголовки и отсутствие поискового текста в HTTP-журнале. TypeScript/build, core/Stage 2 demo и 28-дневная симуляция прошли. PostgreSQL настоящая, внешние продуктовые вызовы выключены. Docker на этой машине отсутствует: обновлённая сборка образа Not Run.
 

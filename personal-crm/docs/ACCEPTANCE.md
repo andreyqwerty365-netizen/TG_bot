@@ -1,5 +1,25 @@
 # Приёмка Personal CRM
 
+## Подготовка первого личного запуска, 14 октября 2026
+
+Итог: **279 CRM passed, 123.61s**, одно прежнее предупреждение Starlette/AnyIO; **133 legacy passed, 6.16s**, **14 React unit passed**, TypeScript/Vite build прошёл. **18 desktop/mobile E2E passed, 32.0s** включают сохранённый cookie вход, capture/короткое уточнение, logout и фактический operational статус. PostgreSQL 16.10 настоящая; Python 3.12.14/Windows, только disposable databases и synthetic owners. `pip check` успешен. Core/Stage2/mail demos и 28-day simulation прошли с real_external_calls=0.
+
+| Изменение | Проверка |
+|---|---|
+| Owner Argon2id/opaque cookie, expiry/logout/password rotation/hold | `test_web_sessions.py`: HttpOnly/Secure/Strict, новая вкладка, server revocation, 30 дней, no-store |
+| Origin/CSRF и durable throttling | Те же PostgreSQL tests: чужой Origin, нет CSRF, 6 concurrent wrong attempts → 5×401/429, пересоздание app, отсутствие пароля в validation JSON |
+| Быстрый source-first ввод/ответ/повтор после сетевого сбоя | `test_capture.py`, React capture tests, desktop/mobile `capture.spec.ts`; request identity сохраняется, конфликт текста не создаёт дубль |
+| Durable operational status/readiness/queue | `test_operations.py`, React ops test, browser Settings; disabled не выдаётся за успешную delivery/копию, stale/error/backup age >26h видны |
+| Production без synthetic delivery/mail/fixtures | `test_production_guards.py`, startup auth/Origin guards; выключенный transport не claim pending job; source работает без browser Bearer |
+| Verified encrypted S3 workflow | `test_remote_backup.py`: synthetic object store, SDK Stubber, upload failure/readback corruption/30-day retention/restart; реальные pg_dump/download/isolated restore |
+| Restore предыдущих ca294b816edf/db71 архивов и sessions fencing | `test_recovery.py`: additive missing tables в одной транзакции, sessions revoked, worker status reset, erasure/unknown guards сохранены |
+| Безопасная initial setup | `test_pilot_setup.py`: пароль два раза/минимум 12, hash вместо plaintext, новый owner Москва/09:00; existing choices не перезаписываются |
+| Большой backlog и persistence | `test_overview_scale.py`: обзор загружает два Task вместо 501 для undated backlog, ranking/count сохранены; отдельная load DB запрещена для normal/test_web |
+
+Нагрузочный прогон: **10 000 synthetic задач, 10 параллельных клиентов, 100 чтений поиска/100 обзоров/100 созданий**. p95 search **0.1493s**, today **0.1815s**, create **0.2005s**, max 0.3034/0.2465/0.2683s. Пересоздание API сохранило 10 100 задач и pending job без доставки. Измерение Windows ASGI/TestClient + PostgreSQL, без HTTP/TLS, отдельная БД `personal_crm_test_load_*`; CPU/RAM VPS не измерены. Первый прогон до оптимизации не достиг цели today; его результат не скрыт в EXECPLAN_PILOT. Проверяемый CLI — `python -m personal_crm.load_rehearsal --report <private-path>`, CRM_LOAD_DATABASE_URL только новая пустая dedicated DB.
+
+Production YAML разобран отдельным PyYAML, сверены закрытые PG/API порты, opt-in profiles, raw env_file, production guards; **это не Docker Compose/Caddy исполнение**. Docker/Linux image build, reboot, настоящий S3/Telegram, DNS/HTTPS и независимый monitoring **Not Run**. Подготовлены [пакет размещения](PILOT_DEPLOYMENT.md) и [первые пять действий](USER_GUIDE.md); этапы реального запуска/Amvera/import остаются в [плане](../EXECPLAN_PILOT.md). Реальная почта и платный ИИ выключены, действующие Amvera-боты не изменены. Ни реальные секреты, ни копии, ни результаты тестовых баз не входят в Git.
+
 ## Резервирование и пробный перенос, 14 октября 2026
 
 **241 CRM passed, 132.55s**, одно прежнее Starlette/AnyIO предупреждение. PostgreSQL 16.10, реальные pg_dump/pg_restore/psql; **22 новых сценария** в `test_recovery.py` / `test_legacy_import.py`. **133 legacy passed, 9.74s**, старый бот не запускался. **11 React unit passed**, TypeScript/Vite build; **16 E2E passed, 53.1s** (desktop/mobile, реальный HTTP/PG). После корректировки позиции screenshot повтор экспорта: **2 passed, 3.8s**; скриншоты просмотрены. `pip check`, core/Stage2/mail demos и 28-day simulation прошли, real_external_calls=0.

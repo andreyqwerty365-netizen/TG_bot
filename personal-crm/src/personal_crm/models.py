@@ -39,6 +39,37 @@ class Profile(Base):
     )
 
 
+class WebSession(Base):
+    __tablename__ = 'web_sessions'
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey('profiles.id'), index=True)
+    credential_version: Mapped[str] = mapped_column(String(64))
+    csrf_token: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+
+
+class LoginThrottle(Base):
+    __tablename__ = 'login_throttles'
+    bucket_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey('profiles.id'), index=True)
+    window_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class WorkerStatus(Base):
+    __tablename__ = 'worker_status'
+    owner_id: Mapped[str] = mapped_column(ForeignKey('profiles.id'),primary_key=True)
+    role: Mapped[str] = mapped_column(String(16),primary_key=True)
+    state: Mapped[str] = mapped_column(String(16))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(32))
+    __table_args__=(CheckConstraint("role IN ('source','delivery','backup')",name='ck_worker_role'),
+                   CheckConstraint("state IN ('running','idle','disabled','error')",name='ck_worker_state'))
+
+
 class Source(Base):
     __tablename__ = "sources"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)

@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 async function login(page:import('@playwright/test').Page) {
+  const session=page.waitForResponse(r=>r.url().endsWith('/auth/session'));
   await page.goto('./');
-  await page.getByLabel('Ключ доступа').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
-  await page.getByRole('button',{name:'Войти',exact:true}).click();
+  if(!(await session).ok()){
+    await page.getByLabel('Пароль').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
+    await page.getByRole('button',{name:'Войти',exact:true}).click();
+  }
   await expect(page.getByRole('heading',{name:'Сегодня',exact:true})).toBeVisible();
 }
 

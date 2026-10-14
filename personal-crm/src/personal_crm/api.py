@@ -5,6 +5,7 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from pydantic import Field
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -51,11 +52,23 @@ class AccessPrivacyFilter(logging.Filter):
 
 def create_app(settings=None, interpreter=None, mail_provider=None):
     settings = settings or Settings.from_env()
+    if settings.environment == 'production':
+        if not settings.owner_id or not settings.web_auth.valid(settings.environment):
+            raise ValueError('production_web_auth_required')
+        if mail_provider is not None and not (settings.mail.enabled and settings.mail.consent):
+            raise ValueError('production_synthetic_provider_forbidden')
     factory = sessions(settings.database_url)
-    interpreter = interpreter or ContextInterpreter(ResponsesAdapter(factory, settings.ai), FixtureInterpreter.from_file("fixtures/demo.json"))
+    interpreter = interpreter or ContextInterpreter(ResponsesAdapter(factory, settings.ai),
+        FixtureInterpreter() if settings.environment == 'production' else FixtureInterpreter.from_file('fixtures/demo.json'))
     service = CRMService(factory, interpreter)
-    app = FastAPI(title="Personal CRM", version="0.2.0")
+    app = FastAPI(title="Personal CRM",version="0.3.0",docs_url=None if settings.environment=='production' else '/docs',
+                  redoc_url=None if settings.environment=='production' else '/redoc',
+                  openapi_url=None if settings.environment=='production' else '/openapi.json')
     app.state.service = service
+
+    @app.exception_handler(RequestValidationError)
+    async def safe_validation(request: Request,error: RequestValidationError):
+        return JSONResponse({'detail':[{'loc':e['loc'],'type':e['type'],'msg':e['msg']} for e in error.errors()]},status_code=422)
     access_logger = logging.getLogger("uvicorn.access")
     if not any(isinstance(item, AccessPrivacyFilter) for item in access_logger.filters):
         access_logger.addFilter(AccessPrivacyFilter())
@@ -68,21 +81,12 @@ def create_app(settings=None, interpreter=None, mail_provider=None):
         response.headers["Referrer-Policy"] = "no-referrer"
         if request.url.path not in ("/docs", "/redoc", "/openapi.json"):
             response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-        if request.headers.get("authorization"):
+        if request.headers.get("authorization") or request.headers.get('cookie') or request.url.path.startswith('/auth/'):
             response.headers["Cache-Control"] = "no-store"
         return response
 
-    def actor(authorization: str | None = Header(default=None)):
-        if not settings.owner_id or not settings.owner_token:
-            raise HTTPException(503, "owner_not_configured")
-        expected = f"Bearer {settings.owner_token}"
-        if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
-            raise HTTPException(401, "unauthorized")
-        service.register(settings.owner_id, settings.timezone, initialize_only=True)
-        with factory() as s:
-            if s.get(Profile, settings.owner_id).recovery_hold:
-                raise HTTPException(503, "recovery_hold")
-        return settings.owner_id
+    from .web_auth import install_auth
+    actor = install_auth(app,service,settings)
 
     @app.exception_handler(CRMError)
     async def crm_error(request: Request, error: CRMError):
@@ -107,12 +111,27 @@ def create_app(settings=None, interpreter=None, mail_provider=None):
 
     @app.get("/ready")
     def ready():
-        if not settings.owner_id or not settings.owner_token:
+        if not settings.owner_id or not (settings.owner_token or settings.web_auth.password_hash):
             raise HTTPException(503, "owner_not_configured")
         with factory() as s:
-            s.execute(text("SELECT 1 FROM alembic_version"))
+            from .recovery import SCHEMA
+            if s.scalar(text('SELECT version_num FROM alembic_version'))!=SCHEMA:
+                raise HTTPException(503,'schema_not_ready')
             s.execute(select(Profile).limit(1))
-        return {"status": "ready", "adapters": "fake"}
+            profile=s.get(Profile,settings.owner_id)
+            if profile and profile.recovery_hold:
+                raise HTTPException(503,'recovery_hold')
+        if settings.environment=='production':
+            from .operations import overview
+            from .recovery import BackupConfig
+            view=overview(factory,settings.owner_id,now=service.clock(),delivery_enabled=settings.telegram.send_enabled,
+                          backup_enabled=BackupConfig.from_env().enabled)
+            required=['source']+(['delivery'] if settings.telegram.send_enabled else [])+(['backup'] if BackupConfig.from_env().enabled else [])
+            if any(view['workers'][role]['status'] not in ('running','idle') for role in required):
+                raise HTTPException(503,'workers_not_ready')
+            if view['workers']['source']['status']=='disabled' or view['backup']['status'] in ('missing','overdue'):
+                raise HTTPException(503,'workers_not_ready')
+        return {'status':'ready'}
 
     @app.post("/sources")
     def intake(body: Intake, owner=Depends(actor)):

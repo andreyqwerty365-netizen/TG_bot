@@ -5,6 +5,8 @@ import { Dialog, Empty, Notice, TaskRows } from './components';
 import { MailEvidence, MailPanel, MailReview } from './mail';
 import { PlanningBoard } from './planning';
 import { DataPanel } from './data-tools';
+import { QuickCapture } from './capture';
+import { OperationsPanel } from './operations';
 
 export type ScreenProps={api:Api;preferences:Preferences;projects:Project[];revision:number;open:(id:string)=>void;changed:(message:string)=>void};
 
@@ -14,6 +16,7 @@ export function Today(props:ScreenProps) {
   if(load.loading)return <p className="loading">Собираем актуальный обзор…</p>;
   if(!view)return null;
   return <div className="today-layout"><div className="today-main">
+    <QuickCapture api={props.api} changed={props.changed} open={props.open}/>
     {view.sync_errors?.map(item=><Notice error key={item.code}>{item.message}</Notice>)}
     {view.proposals.length?<section className="panel"><span className="eyebrow">Ваше решение</span><h2>На подтверждение: {view.proposals.length}</h2><p>Предложения ещё не изменили ваши дела.</p><a href="#inbox">Открыть входящие →</a></section>:null}
     <section className="panel focus-panel"><header className="section-heading"><div><span className="eyebrow">Сначала главное</span><h2>До трёх дел в фокусе</h2></div><span className="count">{view.main.length}</span></header>
@@ -112,6 +115,7 @@ export function SettingsScreen(props:ScreenProps) {
     {error?<Notice error>{error}</Notice>:null}<button className="primary">{busy?'Сохраняем…':'Сохранить настройки'}</button></fieldset></form></section>
     <aside><section className="panel"><h2>Подключения</h2><dl className="connection-list"><dt>Telegram · приём</dt><dd>{prefs.integrations.telegram_receive?'Включён в конфигурации':'Выключен'}</dd><dt>Telegram · доставка</dt><dd>{prefs.integrations.telegram_send?'Включена в конфигурации':'Выключена'}</dd><dt>OpenAI</dt><dd>{prefs.integrations.openai?'Включён в конфигурации':'Выключен'}</dd></dl><p className="muted">Реальные аккаунты подключаются отдельной серверной настройкой. Ключи интеграций остаются на сервере.</p></section>
     <MailPanel api={props.api} revision={props.revision} changed={props.changed} zone={prefs.timezone}/>
+    <OperationsPanel api={props.api} revision={props.revision} zone={prefs.timezone}/>
     <DataPanel api={props.api}/>
     <section className="panel budget-panel"><span className="eyebrow">Контроль расходов</span><h2>Бюджет ИИ</h2><div className="budget-value">${(budget.spent_micro_usd/1e6).toFixed(4)}<small>учтённые расходы за месяц</small></div><p>Резерв: ${(budget.reserved_micro_usd/1e6).toFixed(4)}</p><p>Лимит: ${budget.limit_micro_usd!==undefined?(budget.limit_micro_usd/1e6).toFixed(4):prefs.ai.configured_budget_usd}</p>
       {budget.blocked?<Notice error>Новые платные обращения остановлены лимитом.</Notice>:budget.warning_80?<Notice>Использовано или зарезервировано не меньше 80% лимита.</Notice>:null}

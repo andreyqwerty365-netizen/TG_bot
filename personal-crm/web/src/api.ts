@@ -30,6 +30,9 @@ export type Page = {items:Task[];total:number;offset:number;limit:number};
 const messages:Record<string,string> = {
   unauthorized:'Ключ доступа не подошёл. Введите ключ владельца.', owner_not_configured:'Настройте владельца и ключ доступа на сервере.',
   recovery_hold:'База восстановлена и ожидает проверки. Отправки заблокированы; завершите проверку восстановления на сервере.',
+  web_auth_not_configured:'Настройте пароль и адрес веб-приложения на сервере.',
+  csrf_forbidden:'Сессия изменилась. Обновите страницу и повторите действие.',
+  login_rate_limited:'Слишком много попыток входа. Подождите 15 минут.',
   database_unavailable:'База данных временно недоступна. Повторите попытку позже.', version_conflict:'Дело уже изменилось. Обновите карточку и проверьте правку.',
   proposal_conflict:'Предложение уже обработано или изменилось. Обновите входящие.', task_inactive:'Это дело уже завершено или отменено.',
   ambiguous_or_invalid_time:'Проверьте дату и время. При переводе часов выберите однозначное время.',
@@ -48,16 +51,23 @@ const messages:Record<string,string> = {
   step_plan_required:'Сначала сохраните непустой черновик шагов для активного дела.',
 };
 export class ApiError extends Error { constructor(public status:number, public code:string) {super(messages[code] || 'Не удалось сохранить изменение. Проверьте значения и повторите попытку.');} }
-export function makeApi(token:string) {
+function requester(authHeaders:Record<string,string>,expired?:()=>void) {
   return async function request<T>(path:string, method='GET', body?:unknown, signal?:AbortSignal):Promise<T> {
+    if(!path.startsWith('/')||path.startsWith('//'))throw new Error('Недопустимый адрес запроса.');
     let response:Response;
-    try { response = await fetch(path,{method,signal,headers:{Authorization:`Bearer ${token}`,...(body ? {'Content-Type':'application/json'} : {})},...(body ? {body:JSON.stringify(body)} : {})}); }
+    try { response = await fetch(path,{method,signal,credentials:'same-origin',headers:{...authHeaders,...(body ? {'Content-Type':'application/json'} : {})},...(body ? {body:JSON.stringify(body)} : {})}); }
     catch(error) { if ((error as Error).name === 'AbortError') throw error; throw new Error('Нет связи с сервером. Проверьте подключение; результат сохранения пока неизвестен.'); }
     const data = await response.json();
+    if(response.status===401)expired?.();
     if (!response.ok) throw new ApiError(response.status, typeof data.detail === 'string' ? data.detail : 'invalid_input');
     return data as T;
   };
 }
+export function makeApi(token:string) {return requester({Authorization:`Bearer ${token}`});}
+export function makeSessionApi(csrf:string,expired?:()=>void) {return requester({'X-CSRF-Token':csrf},expired);}
+export type Session={authenticated:boolean;csrf_token:string};
+export function loadSession(){return requester({})<Session>('/auth/session');}
+export function loginSession(password:string){return requester({})<Session>('/auth/login','POST',{password});}
 export type Api = ReturnType<typeof makeApi>;
 export const stateLabels:Record<Task['state'],string> = {active:'Активно',in_progress:'В работе',deferred:'Отложено',done:'Выполнено',cancelled:'Отменено'};
 export const kindLabels = {task:'Задача',waiting:'Ожидание',note:'Заметка'};

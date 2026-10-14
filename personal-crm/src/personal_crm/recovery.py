@@ -24,7 +24,7 @@ from .models import Base
 
 MAGIC = b"CRM-AES256-GCM-v1\0"
 MAX_BYTES = 64 * 1024 * 1024
-SCHEMA = "ca294b816edf"
+SCHEMA = "ec82f6d410aa"
 TABLES = tuple(t.name for t in Base.metadata.sorted_tables)
 ARCHIVE_NAME = re.compile(r"crm-\d{8}T\d{6}Z-[a-f0-9]{12}\.crmb\Z")
 
@@ -167,16 +167,25 @@ def _run(pg_bin, name, args, url=None, data=None):
 
 
 def _unpack(path, key):
-    data = unseal(_read(path, "archive_unavailable"), key, "backup")
+    return decode_archive(_read(path,'archive_unavailable'),key)
+
+
+def decode_archive(encrypted,key):
+    data = unseal(encrypted,key,'backup')
     try:
         size = struct.unpack("!I", data[:4])[0]
         if size > 1024 * 1024:
             raise ValueError()
         manifest = json.loads(data[4:4 + size])
         dump = data[4 + size:]
-        if manifest["version"] != 1 or manifest["schema_revision"] != SCHEMA:
+        if manifest["version"] != 1 or manifest["schema_revision"] not in (SCHEMA,'db71ea6c903f','ca294b816edf'):
             raise ValueError()
-        if set(manifest["counts"]) != set(TABLES) or not isinstance(manifest["owners"], list):
+        expected_tables=set(TABLES)
+        if manifest['schema_revision']=='ca294b816edf':
+            expected_tables-= {'web_sessions','login_throttles','worker_status'}
+        elif manifest['schema_revision']=='db71ea6c903f':
+            expected_tables-={'worker_status'}
+        if set(manifest["counts"]) != expected_tables or not isinstance(manifest["owners"], list):
             raise ValueError()
         if any(type(n) is not int or n < 0 for n in manifest["counts"].values()):
             raise ValueError()
@@ -269,6 +278,8 @@ def _erase_sql(owner):
 
 QUARANTINE = """
 UPDATE profiles SET recovery_hold=true, ai_paused=true;
+UPDATE web_sessions SET revoked=true;
+UPDATE worker_status SET state='disabled',error_code='restore_hold',last_success_at=NULL;
 UPDATE jobs SET status='cancelled', cancel_reason='restore_hold', lease_token=NULL, lease_until=NULL
  WHERE status IN ('pending','leased');
 UPDATE delivery_attempts SET outcome='unknown' WHERE outcome='pending';
@@ -303,7 +314,18 @@ def _restore_backup(path, key, target_url, pg_bin, ledger):
         for name, count in manifest["counts"].items():
             checks.append(f"IF (SELECT count(*) FROM \"{name}\") <> {count} THEN RAISE EXCEPTION 'restore_count_mismatch'; END IF;")
         deleted = [owner for owner in manifest["owners"] if owner_hash(owner) in erased]
-        tail = "\nSET search_path TO public, pg_catalog;\nDO $$ BEGIN " + " ".join(checks) + " END $$;\n" + QUARANTINE
+        upgrade=''
+        if manifest['schema_revision']!=SCHEMA:
+            from sqlalchemy.schema import CreateTable,CreateIndex
+            from sqlalchemy.dialects.postgresql import dialect
+            names=('web_sessions','login_throttles','worker_status') if manifest['schema_revision']=='ca294b816edf' else ('worker_status',)
+            for name in names:
+                table=Base.metadata.tables[name]
+                upgrade+=str(CreateTable(table).compile(dialect=dialect()))+';\n'
+                for index in table.indexes:
+                    upgrade+=str(CreateIndex(index).compile(dialect=dialect()))+';\n'
+            upgrade+=f"UPDATE alembic_version SET version_num='{SCHEMA}';\n"
+        tail = "\nSET search_path TO public, pg_catalog;\n"+upgrade+"DO $$ BEGIN " + " ".join(checks) + " END $$;\n" + QUARANTINE
         tail += "\n".join(_erase_sql(owner) for owner in deleted)
         # Schema, records, count verification, erasures and fencing commit together.
         _run(pg_bin, "psql", ["--no-psqlrc", "--no-password", "--single-transaction", "--set=ON_ERROR_STOP=on"],

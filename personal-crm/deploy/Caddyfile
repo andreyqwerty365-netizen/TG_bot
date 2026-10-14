@@ -1,0 +1,19 @@
+{
+    email {$ACME_EMAIL}
+    admin off
+}
+{$CRM_HOST} {
+    @maintenance path /docs* /redoc* /openapi.json /adapters/*
+    respond @maintenance 404
+    request_body {
+        max_size 64KB
+    }
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        Referrer-Policy "same-origin"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        -Server
+    }
+    reverse_proxy api:8000
+}

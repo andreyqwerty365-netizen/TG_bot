@@ -6,7 +6,7 @@ test('synchronises synthetic mail and creates a task only after confirmation',as
   const status=await (await request.get('/workspace/mail',{headers})).json();
   expect(status.provider).toBe('synthetic');
   await page.goto('./#settings');
-  await page.getByLabel('Ключ доступа').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
+  await page.getByLabel('Пароль').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
   await page.getByRole('button',{name:'Войти',exact:true}).click();
   await expect(page.getByText('Синтетический стенд. Реальный ящик не подключён.')).toBeVisible();
   await page.getByRole('button',{name:'Синхронизировать',exact:true}).click();
@@ -30,8 +30,7 @@ test('synchronises synthetic mail and creates a task only after confirmation',as
   tasks=await(await request.get('/workspace/tasks?q='+encodeURIComponent(title),{headers})).json();
   expect(tasks.total).toBe(1);expect(tasks.items[0].state).toBe('active');
   await page.reload();
-  await page.getByLabel('Ключ доступа').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
-  await page.getByRole('button',{name:'Войти',exact:true}).click();
+  await expect(page.getByLabel('Пароль')).not.toBeVisible();
   await page.getByRole('link',{name:'Все дела',exact:true}).click();
   await page.getByLabel('Найти дело').fill(title);
   await expect(page.getByRole('button',{name:title,exact:true})).toBeVisible();

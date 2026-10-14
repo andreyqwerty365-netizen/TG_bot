@@ -16,6 +16,8 @@ from .service import CRMService
 
 
 def guard(settings):
+    if settings.environment == 'production':
+        raise RuntimeError('Synthetic mail is forbidden in production')
     if not settings.database_url.rsplit("/", 1)[-1].startswith("personal_crm_test") or not settings.owner_id.startswith("synthetic-"):
         raise RuntimeError("Synthetic mail requires personal_crm_test* database and synthetic-* owner")
     if settings.mail.enabled or settings.mail.consent:
