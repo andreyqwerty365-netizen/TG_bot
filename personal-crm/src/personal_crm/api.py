@@ -14,6 +14,8 @@ from .db import sessions
 from .models import Guidance, History, Job, Profile, Proposal, Source, SourceVersion, Task
 from .schema import Deadline, Incoming, Strict
 from .service import CRMError, CRMService, snapshot
+from .openai_adapter import ContextInterpreter, ResponsesAdapter
+from .telegram import TelegramIngress
 
 
 class Intake(Incoming):
@@ -39,7 +41,7 @@ class Confirmation(Strict):
 def create_app(settings=None, interpreter=None):
     settings = settings or Settings.from_env()
     factory = sessions(settings.database_url)
-    interpreter = interpreter or FixtureInterpreter.from_file("fixtures/demo.json")
+    interpreter = interpreter or ContextInterpreter(ResponsesAdapter(factory, settings.ai), FixtureInterpreter.from_file("fixtures/demo.json"))
     service = CRMService(factory, interpreter)
     app = FastAPI(title="Personal CRM — fake adapters", version="0.1.0")
     app.state.service = service
@@ -78,6 +80,25 @@ def create_app(settings=None, interpreter=None):
     def intake(body: Intake, owner=Depends(actor)):
         version_id = service.ingest(owner, body.channel, body)
         return service.process(owner, version_id)
+
+    @app.post("/adapters/synthetic-telegram")
+    def synthetic_telegram(payload: dict, owner=Depends(actor)):
+        return TelegramIngress(service, settings.telegram, owner).accept(payload)
+
+    @app.post("/telegram/webhook")
+    def telegram_webhook(payload: dict, x_telegram_bot_api_secret_token: str | None = Header(default=None)):
+        ingress = TelegramIngress(service, settings.telegram, settings.owner_id)
+        ingress.authenticate_webhook(x_telegram_bot_api_secret_token)
+        if not settings.owner_id or not settings.owner_token:
+            raise HTTPException(503, "owner_not_configured")
+        service.register(settings.owner_id, settings.timezone)
+        return ingress.accept(payload)
+
+    @app.get("/ai/status")
+    def ai_status(owner=Depends(actor)):
+        from .budget import BudgetLedger
+        return {"enabled": settings.ai.enabled, "model": settings.ai.model,
+                "budget": BudgetLedger(factory, service.clock).status(owner)}
 
     @app.post("/adapters/fake-mail")
     def fake_mail(body: Incoming, x_connector_token: str | None = Header(default=None)):

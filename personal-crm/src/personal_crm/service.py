@@ -5,7 +5,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from .models import Guidance, History, Job, Profile, Proposal, Reminder, Source, SourceVersion, Task, uid, utcnow
+from .models import (AIBudget, Conversation, Dialogue, Guidance, History, Job, OutgoingReply, Profile,
+                     Proposal, Reminder, Source, SourceVersion, Task, uid, utcnow)
 from .schema import Interpretation
 
 
@@ -33,6 +34,7 @@ def snapshot(task):
         "planned_on": task.planned_on.isoformat() if task.planned_on else None,
         "return_on": task.return_on.isoformat() if task.return_on else None,
         "focused": task.focused, "plan_postponements": task.plan_postponements,
+        "draft_steps": task.draft_steps,
     }
 
 
@@ -67,27 +69,27 @@ class CRMService:
             raise CRMError("version_conflict")
         return task
 
-    def ingest(self, owner_id, channel, incoming):
+    def ingest(self, owner_id, channel, incoming, *, metadata=None, received_at=None):
         # This transaction is committed before any interpreter invocation.
         with self.factory.begin() as s:
             self.owner(s, owner_id)
-            source_id = uid()
-            key = dict(owner_id=owner_id, channel=channel, account=incoming.account, external_id=incoming.external_id)
-            s.execute(insert(Source).values(id=source_id, **key).on_conflict_do_nothing())
-            source = s.scalar(select(Source).filter_by(**key).with_for_update())
-            previous = s.scalar(select(SourceVersion).where(
-                SourceVersion.source_id == source.id, SourceVersion.revision == incoming.revision
-            ))
-            if previous:
-                if previous.text != incoming.text or previous.original_at != incoming.original_at:
-                    raise CRMError("source_revision_conflict")
-                return previous.id
-            version = SourceVersion(source_id=source.id, revision=incoming.revision,
-                                    text=incoming.text, original_at=incoming.original_at,
-                                    received_at=self.clock())
-            s.add(version)
-            s.flush()
-            return version.id
+            return self._ingest(s, owner_id, channel, incoming, metadata, received_at)
+
+    def _ingest(self, s, owner_id, channel, incoming, metadata=None, received_at=None):
+        key = dict(owner_id=owner_id, channel=channel, account=incoming.account, external_id=incoming.external_id)
+        s.execute(insert(Source).values(id=uid(), **key).on_conflict_do_nothing())
+        source = s.scalar(select(Source).filter_by(**key).with_for_update())
+        previous = s.scalar(select(SourceVersion).where(SourceVersion.source_id == source.id, SourceVersion.revision == incoming.revision))
+        if previous:
+            if previous.text != incoming.text or previous.original_at != incoming.original_at:
+                raise CRMError("source_revision_conflict")
+            return previous.id
+        version = SourceVersion(source_id=source.id, revision=incoming.revision,
+                                text=incoming.text, original_at=incoming.original_at,
+                                received_at=received_at or self.clock(), channel_metadata=metadata)
+        s.add(version)
+        s.flush()
+        return version.id
 
     def process(self, owner_id, version_id):
         now, token = self.clock(), uid()
@@ -105,8 +107,22 @@ class CRMService:
             source_version.parse_token = token
             source_version.parse_until = now + timedelta(minutes=1)
             text = source_version.text
+        context = None
+        trusted_rule = False
         try:
-            output = self.interpreter.interpret(version_id, text)
+            if hasattr(self.interpreter, "interpret_context"):
+                from .context import build_context
+                from .language import deterministic
+                with self.factory.begin() as s:
+                    profile = self.owner(s, owner_id)
+                    version = s.get(SourceVersion, version_id)
+                    context = build_context(s, owner_id, s.get(Source, version.source_id), version, profile, self.clock())
+                output = deterministic(context)
+                trusted_rule = output is not None
+                if output is None:
+                    output = self.interpreter.interpret_context(context)
+            else:
+                output = self.interpreter.interpret(version_id, text)
             output = Interpretation.model_validate(output)
             if output.source_version_id != version_id:
                 raise CRMError("source_mismatch")
@@ -116,95 +132,206 @@ class CRMService:
                 if version.parse_token != token:
                     return {"status": "processing", "source_version_id": version_id}
                 source = s.get(Source, version.source_id)
-                result = self._apply_interpretation(s, owner_id, source, version, output)
+                result = self._apply_interpretation(s, owner_id, source, version, output, trusted_rule, context)
+                self._finish_context(s, owner_id, source, version, output, result, trusted_rule)
                 version.status, version.result, version.error_code = "processed", result, None
                 version.parse_token, version.parse_until = None, None
                 return result
-        except Exception:
+        except Exception as error:
             # Do not expose model contents, stack traces, source texts or credentials.
             with self.factory.begin() as s:
+                self.owner(s, owner_id)
                 version = s.scalar(select(SourceVersion).where(SourceVersion.id == version_id).with_for_update())
                 if version.parse_token == token:
-                    version.status, version.error_code = "error", "interpretation_failed"
+                    allowed_codes = {"ai_disabled", "ai_consent_required", "ai_configuration_invalid", "ai_budget_limit",
+                                     "ai_previous_attempt", "ai_timeout", "ai_refusal", "ai_incomplete", "ai_invalid_output", "ai_auth_error"}
+                    code = getattr(error, "code", "interpretation_failed")
+                    code = code if code in allowed_codes else "interpretation_failed"
+                    version.status, version.error_code = "error", code
                     version.parse_token, version.parse_until = None, None
-            return {"status": "error", "source_version_id": version_id, "code": "interpretation_failed"}
+                    if hasattr(self.interpreter, "interpret_context"):
+                        source = s.get(Source, version.source_id)
+                        cursor = s.scalar(select(Conversation).where(Conversation.owner_id == owner_id,
+                                          Conversation.account == source.account))
+                        if not cursor:
+                            cursor = Conversation(owner_id=owner_id, account=source.account)
+                            s.add(cursor)
+                        cursor.last_source_version_id = version.id
+                    self._reply(s, owner_id, version, {"status": "error"})
+            return {"status": "error", "source_version_id": version_id, "code": version.error_code or "interpretation_failed"}
 
-    def _apply_interpretation(self, s, owner_id, source, version, output):
+    def _apply_interpretation(self, s, owner_id, source, version, output, trusted_rule=False, context=None):
+        if output.operation in ("command", "answer", "overview"):
+            if source.channel != "owner" or (not trusted_rule and output.operation != "overview"):
+                raise CRMError("model_authority_rejected")
+            if output.operation == "overview":
+                from .accompaniment import overview
+                return {"status": "overview", "overview": overview(s, s.get(Profile, owner_id), self.clock())}
+            if output.operation == "answer":
+                dialogue = self._bound_dialogue(s, owner_id, source.account, output.dialogue_id)
+                if not dialogue or not dialogue.proposal_id:
+                    return {"status": "clarification", "question": "Ответ не связан с актуальным предложением."}
+                try:
+                    result = self._confirm(s, owner_id, dialogue.proposal_id, dialogue.proposal_version, output.accepted)
+                except CRMError as error:
+                    if error.code != "proposal_conflict":
+                        raise
+                    result = {"status": "conflict", "code": "proposal_conflict"}
+                dialogue.status = "stale" if result["status"] == "conflict" else "resolved"
+                return result
+            if context is None or not any(t.id == output.target_id for t in context.candidates):
+                raise CRMError("unbound_command")
+            task = self.task(s, owner_id, output.target_id)
+            if task.version != output.target_version:
+                if output.dialogue_id:
+                    dialogue = self._bound_dialogue(s, owner_id, source.account, output.dialogue_id)
+                    if dialogue:
+                        dialogue.status = "stale"
+                return {"status": "conflict", "code": "version_conflict"}
+            self._change(s, task, output.change, output, "explicit_command", version.id)
+            if output.dialogue_id:
+                dialogue = self._bound_dialogue(s, owner_id, source.account, output.dialogue_id)
+                if dialogue:
+                    dialogue.status = "resolved"
+            return {"status": "changed", "task": snapshot(task)}
         if output.operation == "clarify":
             return {"status": "clarification", "source_version_id": version.id, "question": output.question}
         payload = output.model_dump(mode="json")
         if output.operation == "propose_update":
+            if context is not None and not any(t.id == output.target_id and t.version == output.target_version for t in context.candidates):
+                raise CRMError("model_target_rejected")
             target = self.task(s, owner_id, output.target_id, output.target_version)
             proposal = Proposal(owner_id=owner_id, source_version_id=version.id,
                                 task_id=target.id, expected_version=target.version, payload=payload)
         else:
             # An edited source creates a version-bound proposal, never a second active task.
             existing = s.scalar(select(Task).join(SourceVersion).where(
-                SourceVersion.source_id == source.id
+                SourceVersion.source_id == source.id, Task.owner_id == owner_id
             ))
             if existing:
                 payload.update(operation="propose_update", target_id=existing.id,
                                target_version=existing.version, change="title")
                 proposal = Proposal(owner_id=owner_id, source_version_id=version.id,
                                     task_id=existing.id, expected_version=existing.version, payload=payload)
-            elif source.channel != "mail" and output.obvious and not output.reminder_at:
-                task = self._create(s, owner_id, version.id, output, "source", version.id)
+            elif source.channel != "mail" and output.obvious and (not output.reminder_at or (trusted_rule and source.channel == "owner")) and not (output.planned_on or output.return_on or output.focused is not None):
+                task = self._create(s, owner_id, version.id, output, "source", version.id,
+                                    allow_reminder=trusted_rule and source.channel == "owner")
                 return {"status": "created", "source_version_id": version.id, "task": snapshot(task)}
             else:
                 proposal = Proposal(owner_id=owner_id, source_version_id=version.id, payload=payload)
         s.add(proposal)
         s.flush()
         return {"status": "proposal", "source_version_id": version.id,
-                "proposal_id": proposal.id, "version": proposal.version}
+                "proposal_id": proposal.id, "version": proposal.version, "proposal": payload,
+                "target_title": self.task(s, owner_id, proposal.task_id).title if proposal.task_id else output.title}
 
-    def _create(self, s, owner_id, source_version_id, output, reason, reference):
+    def _create(self, s, owner_id, source_version_id, output, reason, reference, allow_reminder=False):
         deadline = output.deadline.model_dump() if output.deadline else None
         task = Task(owner_id=owner_id, source_version_id=source_version_id,
                     title=output.title, kind=output.kind, original_deadline=deadline,
                     deadline=deadline, version=1, state="active", created_at=self.clock())
+        task.draft_steps = output.draft_steps
+        if output.planned_on or output.return_on:
+            profile = s.get(Profile, owner_id)
+            if not profile.timezone:
+                raise CRMError("profile_timezone_required", 422)
+            task.planned_on = output.planned_on
+            if output.return_on:
+                if output.return_on <= self.clock().astimezone(ZoneInfo(profile.timezone)).date():
+                    raise CRMError("future_return_date_required", 422)
+                task.state, task.return_on = "deferred", output.return_on
+        if output.focused is not None:
+            task.focused = output.focused
         s.add(task)
         s.flush()
         if output.reminder_at:
             # Model-created schedules are proposals; only explicit owner confirmation activates them.
-            raise CRMError("schedule_requires_owner_confirmation")
+            if not allow_reminder:
+                raise CRMError("schedule_requires_owner_confirmation")
+            self._schedule(s, task, output.reminder_at)
         self._history(s, task, None, "owner" if reason == "confirmation" else "source", reason, reference)
         return task
 
     def confirm(self, owner_id, proposal_id, proposal_version, accept=True):
-        conflict = False
         with self.factory.begin() as s:
             self.owner(s, owner_id)
-            proposal = s.scalar(select(Proposal).where(
-                Proposal.id == proposal_id, Proposal.owner_id == owner_id
-            ).with_for_update())
-            if not proposal:
-                raise CRMError("not_found", 404)
-            if proposal.version != proposal_version or proposal.status != "pending":
-                raise CRMError("proposal_conflict")
-            if not accept:
-                proposal.status, proposal.version = "rejected", proposal.version + 1
-                return {"status": "rejected"}
-            output = Interpretation.model_validate(proposal.payload)
-            if proposal.task_id:
-                task = self.task(s, owner_id, proposal.task_id)
-                if task.version != proposal.expected_version:
-                    proposal.status, proposal.version = "stale", proposal.version + 1
-                    conflict = True
-                else:
-                    self._change(s, task, output.change, output, "confirmation", proposal.id)
-            else:
-                # Confirmation explicitly authorizes a proposed reminder as well as task creation.
-                reminder_at = output.reminder_at
-                task = self._create(s, owner_id, proposal.source_version_id,
-                                    output.model_copy(update={"reminder_at": None}), "confirmation", proposal.id)
-                if reminder_at:
-                    self._schedule(s, task, reminder_at)
-            if not conflict:
-                proposal.status, proposal.version = "accepted", proposal.version + 1
-                result = {"status": "accepted", "task": snapshot(task)}
-        if conflict:
+            result = self._confirm(s, owner_id, proposal_id, proposal_version, accept)
+        if result["status"] == "conflict":
             raise CRMError("version_conflict")
         return result
+
+    def _confirm(self, s, owner_id, proposal_id, proposal_version, accept=True):
+        proposal = s.scalar(select(Proposal).where(
+            Proposal.id == proposal_id, Proposal.owner_id == owner_id
+        ).with_for_update())
+        if not proposal:
+            raise CRMError("not_found", 404)
+        if (proposal_version is not None and proposal.version != proposal_version) or proposal.status != "pending":
+            raise CRMError("proposal_conflict")
+        if not accept:
+            proposal.status, proposal.version = "rejected", proposal.version + 1
+            return {"status": "rejected"}
+        output = Interpretation.model_validate(proposal.payload)
+        if proposal.task_id:
+            task = self.task(s, owner_id, proposal.task_id)
+            if task.version != proposal.expected_version:
+                proposal.status, proposal.version = "stale", proposal.version + 1
+                return {"status": "conflict", "code": "version_conflict"}
+            else:
+                self._change(s, task, output.change, output, "confirmation", proposal.id)
+        else:
+            # Confirmation explicitly authorizes a proposed reminder as well as task creation.
+            task = self._create(s, owner_id, proposal.source_version_id,
+                                output, "confirmation", proposal.id, allow_reminder=True)
+        proposal.status, proposal.version = "accepted", proposal.version + 1
+        return {"status": "accepted", "task": snapshot(task)}
+
+    def _bound_dialogue(self, s, owner_id, account, identity):
+        return s.scalar(select(Dialogue).where(Dialogue.id == identity, Dialogue.owner_id == owner_id,
+                         Dialogue.account == account, Dialogue.status == "pending", Dialogue.expires_at > self.clock()))
+
+    def _finish_context(self, s, owner_id, source, version, output, result, trusted_rule=False):
+        if hasattr(self.interpreter, "interpret_context"):
+            cursor = s.scalar(select(Conversation).where(Conversation.owner_id == owner_id, Conversation.account == source.account))
+            if not cursor:
+                cursor = Conversation(owner_id=owner_id, account=source.account)
+                s.add(cursor)
+            cursor.last_source_version_id = version.id
+            if result.get("task"):
+                cursor.last_task_id = result["task"]["id"]
+                if s.scalar(select(Reminder.id).where(Reminder.task_id == cursor.last_task_id, Reminder.active.is_(True))):
+                    cursor.last_reminder_task_id = cursor.last_task_id
+            if output.dialogue_id and trusted_rule and result["status"] in ("created", "changed", "accepted", "rejected"):
+                previous = self._bound_dialogue(s, owner_id, source.account, output.dialogue_id)
+                if previous:
+                    previous.status = "resolved"
+            if result["status"] in ("clarification", "proposal"):
+                if output.dialogue_id and trusted_rule:
+                    previous = self._bound_dialogue(s, owner_id, source.account, output.dialogue_id)
+                    if previous:
+                        previous.status = "resolved"
+                proposal = s.get(Proposal, result.get("proposal_id")) if result.get("proposal_id") else None
+                s.add(Dialogue(owner_id=owner_id, account=source.account, source_version_id=version.id,
+                    proposal_id=proposal.id if proposal else None, task_id=proposal.task_id if proposal else output.target_id,
+                    proposal_version=proposal.version if proposal else None,
+                    expected_version=proposal.expected_version if proposal else output.target_version,
+                    pending_action=output.pending_action, expires_at=self.clock() + timedelta(hours=24)))
+        self._reply(s, owner_id, version, result)
+
+    def _reply(self, s, owner_id, version, result):
+        if not (version.channel_metadata or {}).get("reply_required"):
+            return
+        if s.scalar(select(OutgoingReply.id).where(OutgoingReply.source_version_id == version.id)):
+            return
+        from .replies import short_reply
+        text = short_reply(result)
+        budget = s.get(AIBudget, (owner_id, self.clock().astimezone(UTC).date().replace(day=1)))
+        if budget and budget.warning_80:
+            text += " Резерв или расходы ИИ достигли 80% месячного лимита; новые вызовы ограничены бюджетом."
+        reply = OutgoingReply(owner_id=owner_id, source_version_id=version.id, text=text)
+        s.add(reply)
+        s.flush()
+        s.add(Job(owner_id=owner_id, reply_id=reply.id, kind="reply", dedupe_key=f"reply:{version.id}", run_at=self.clock()))
 
     def command(self, owner_id, task_id, version, action, *, at=None, deadline=None, title=None,
                 planned_on=None, return_on=None, focused=None):
