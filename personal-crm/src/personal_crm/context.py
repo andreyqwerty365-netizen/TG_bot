@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import re
 
-from sqlalchemy import select, update
+from sqlalchemy import Date, cast, func, or_, select, update
 
 from .models import Conversation, Dialogue, Reminder, Source, SourceVersion, Task
 
@@ -57,7 +57,9 @@ def build_context(s, owner_id, source, version, profile, now):
         Source.owner_id == owner_id, Source.account == source.account)) if reply else None
     if not linked_version:
         reply = None
-    task_query = select(Task).where(Task.owner_id == owner_id, Task.state.in_(["active", "in_progress", "deferred"]))
+    due_occurrence = or_(Task.recurrence_id.is_(None),
+        Task.occurrence_on <= cast(func.timezone(Task.occurrence_timezone, now), Date))
+    task_query = select(Task).where(Task.owner_id == owner_id, Task.state.in_(["active", "in_progress", "deferred"]), due_occurrence)
     completion = re.fullmatch(r"(.+?) (?:обновил|выполнил|сделал|закончил)", version.text.lower().strip(" .!?"))
     subject = completion.group(1) if completion else ""
     words = {w for w in re.findall(r"[а-яёa-z]{3,}", subject) if w not in {"задачу", "задача", "дело", "последнее", "последнюю"}}
@@ -76,7 +78,7 @@ def build_context(s, owner_id, source, version, profile, now):
         # IDs are durable references, not hints limited to the newest rows.
         for identity in (cursor.last_task_id, cursor.last_reminder_task_id):
             linked_task = s.scalar(select(Task).where(Task.id == identity, Task.owner_id == owner_id,
-                                   Task.state.in_(["active", "in_progress", "deferred"]))) if identity else None
+                                   Task.state.in_(["active", "in_progress", "deferred"]), due_occurrence)) if identity else None
             if linked_task and all(t.id != identity for t in task_rows):
                 task_rows.insert(0, linked_task)
     if cursor and cursor.last_reminder_task_id:

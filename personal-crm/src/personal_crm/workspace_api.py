@@ -69,6 +69,7 @@ class Preferences(Strict):
     catchup_grace_seconds: int | None = Field(default=None, ge=60, le=86400)
     ai_paused: bool | None = None
     ai_budget_cap_micro_usd: int | None = Field(default=None, ge=0)
+    preferred_reminder_time: str | None = Field(default=None, pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 class Reply(Strict):
@@ -191,8 +192,14 @@ def install_workspace(app, service, settings, actor):
             history = [{"id": h.id, "task_version": h.task_version, "reason": h.reason, "before": h.before,
                         "after": h.after, "created_at": h.created_at} for h in s.scalars(select(History).where(
                             History.task_id == identity, History.owner_id == owner).order_by(History.created_at.desc(), History.task_version.desc()))]
+            from .models import Recurrence
+            from .recurrence import rule_view
+            rule = s.scalar(select(Recurrence).where(Recurrence.id == task.recurrence_id, Recurrence.owner_id == owner)) if task.recurrence_id else None
             return {**task_view(task, reminder), "source": {"id": version.id, "text": version.text, "channel": source.channel,
-                    "received_at": version.received_at, "original_at": version.original_at}, "history": history}
+                    "received_at": version.received_at, "original_at": version.original_at}, "history": history,
+                    "recurrence": rule_view(rule) if rule else None,
+                    "children": [snapshot(child) for child in s.scalars(select(Task).where(Task.parent_task_id == identity,
+                        Task.owner_id == owner).order_by(Task.step_batch.desc(), Task.step_index).limit(100))]}
 
     @app.patch("/workspace/tasks/{identity}")
     def task_edit(identity: str, body: TaskEdit, owner=Depends(actor)):
@@ -288,6 +295,7 @@ def install_workspace(app, service, settings, actor):
         return {"version": profile.version, "timezone": profile.timezone, "digest_hour": profile.digest_hour,
                 "initiative_limit": profile.initiative_limit, "catchup_grace_seconds": profile.catchup_grace_seconds,
                 "ai_paused": profile.ai_paused, "ai_budget_cap_micro_usd": profile.ai_budget_cap_micro_usd,
+                "preferred_reminder_time": profile.preferred_reminder_time,
                 "integrations": {"telegram_receive": settings.telegram.webhook_enabled, "telegram_send": settings.telegram.send_enabled,
                                  "mail": settings.mail.enabled and settings.mail.consent, "openai": settings.ai.enabled},
                 "ai": {"model": settings.ai.model, "configured_budget_usd": settings.ai.monthly_budget_usd,
@@ -313,7 +321,7 @@ def install_workspace(app, service, settings, actor):
                         maximum = 0
                     if value is not None and value > maximum:
                         raise CRMError("budget_exceeds_server_limit", 422)
-                elif value is None:
+                elif value is None and field != "preferred_reminder_time":
                     raise CRMError("setting_value_required", 422)
                 if field == "timezone":
                     try:

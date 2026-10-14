@@ -74,7 +74,7 @@ class ProviderOutput(Strict):
     reminder_at: str | None
     target_id: str | None
     target_version: int | None
-    change: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus"] | None
+    change: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus", "steps"] | None
     planned_on: str | None
     return_on: str | None
     focused: bool | None

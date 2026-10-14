@@ -29,6 +29,9 @@ def main():
             if time.monotonic() - last_prune >= 300:
                 from .mail import MailSync
                 MailSync(service, None).prune(settings.owner_id)
+                from .suggestions import refresh
+                with factory.begin() as s:
+                    refresh(s, service.owner(s, settings.owner_id), service.clock(), settings.planning)
                 last_prune = time.monotonic()
             if args.once or result["processed"]:
                 print(f"source worker processed={result['processed']}", flush=True)

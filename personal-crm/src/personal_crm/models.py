@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from sqlalchemy import (
     BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer,
-    JSON, String, Text, UniqueConstraint, event,
+    JSON, String, Text, UniqueConstraint, event, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -27,6 +27,7 @@ class Profile(Base):
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     ai_paused: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     ai_budget_cap_micro_usd: Mapped[int | None] = mapped_column(BigInteger)
+    preferred_reminder_time: Mapped[str | None] = mapped_column(String(5))
     digest_hour: Mapped[int] = mapped_column(default=12)
     initiative_limit: Mapped[int] = mapped_column(default=2)
     catchup_grace_seconds: Mapped[int] = mapped_column(default=3600, server_default="3600")
@@ -120,11 +121,72 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class Recurrence(Base):
+    __tablename__ = "recurrences"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    frequency: Mapped[str] = mapped_column(String(16))
+    interval: Mapped[int] = mapped_column(Integer)
+    anchor_on: Mapped[date] = mapped_column(Date)
+    timezone: Mapped[str] = mapped_column(String(64))
+    reminder_time: Mapped[str | None] = mapped_column(String(5))
+    template: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (
+        CheckConstraint("frequency IN ('daily','weekly','monthly')", name="ck_recurrence_frequency"),
+        CheckConstraint("interval BETWEEN 1 AND 365", name="ck_recurrence_interval"),
+        CheckConstraint("status IN ('active','stopped')", name="ck_recurrence_status"),
+    )
+
+
+class RecurrenceHistory(Base):
+    __tablename__ = "recurrence_history"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    recurrence_id: Mapped[str] = mapped_column(ForeignKey("recurrences.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    before: Mapped[dict | None] = mapped_column(JSON)
+    after: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (UniqueConstraint("recurrence_id", "version"),)
+
+
+class PlanningSuggestion(Base):
+    __tablename__ = "planning_suggestions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), index=True)
+    task_version: Mapped[int | None] = mapped_column(Integer)
+    profile_version: Mapped[int | None] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16))
+    event_key: Mapped[str] = mapped_column(String(128))
+    payload: Mapped[dict] = mapped_column(JSON)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (
+        UniqueConstraint("owner_id", "event_key"),
+        CheckConstraint("kind IN ('early','step','reminder_time')", name="ck_planning_kind"),
+        CheckConstraint("status IN ('pending','accepted','dismissed','stale')", name="ck_planning_status"),
+    )
+
+
 class Task(Base):
     __tablename__ = "tasks"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
     project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    recurrence_id: Mapped[str | None] = mapped_column(ForeignKey("recurrences.id"), index=True)
+    occurrence_on: Mapped[date | None] = mapped_column(Date)
+    occurrence_timezone: Mapped[str | None] = mapped_column(String(64))
+    recurrence_warning: Mapped[str | None] = mapped_column(String(32))
+    parent_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), index=True)
+    step_batch: Mapped[int | None] = mapped_column(Integer)
+    step_index: Mapped[int | None] = mapped_column(Integer)
+    steps_revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    promoted_steps_revision: Mapped[int | None] = mapped_column(Integer)
     source_version_id: Mapped[str] = mapped_column(ForeignKey("source_versions.id"), unique=True)
     title: Mapped[str] = mapped_column(Text)
     title_search: Mapped[str] = mapped_column(Text, default="", server_default="")
@@ -147,6 +209,10 @@ class Task(Base):
         CheckConstraint("state IN ('active','in_progress','deferred','done','cancelled')"),
         CheckConstraint("version > 0"),
         CheckConstraint("plan_postponements >= 0 AND obstacle_at_count >= 0", name="ck_postponement_counts"),
+        UniqueConstraint("recurrence_id", "occurrence_on", name="uq_recurrence_occurrence"),
+        UniqueConstraint("parent_task_id", "step_batch", "step_index", name="uq_plan_child"),
+        Index("uq_recurrence_open", "recurrence_id", unique=True,
+              postgresql_where=text("recurrence_id IS NOT NULL AND state IN ('active','in_progress','deferred')")),
     )
 
 

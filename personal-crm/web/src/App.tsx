@@ -41,7 +41,7 @@ function Workspace({token,logout}:{token:string;logout:()=>void}) {
       <footer className="workspace-footer">Personal CRM<span>{prefs?.timezone || 'Часовой пояс не задан'}</span><button className="text-button" onClick={()=>setRevision(v=>v+1)}>Обновить данные</button><button className="text-button mobile-logout" onClick={logout}>Выйти</button></footer>
     </main>
     {adding&&prefs?<Dialog title="Новое дело" close={()=>setAdding(false)}><TaskForm projects={projectRows} zone={prefs.timezone} onSave={async values=>{await api('/workspace/tasks','POST',values);changed('Дело сохранено');setAdding(false);}}/></Dialog>:null}
-    {selected&&prefs?<TaskDialog id={selected} api={api} revision={revision} preferences={prefs} projects={projectRows} close={()=>setSelected(null)} changed={changed}/>:null}
+    {selected&&prefs?<TaskDialog id={selected} api={api} revision={revision} preferences={prefs} projects={projectRows} close={()=>setSelected(null)} changed={changed} open={setSelected}/>:null}
   </div>;
 }
 

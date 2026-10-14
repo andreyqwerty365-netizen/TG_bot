@@ -24,6 +24,8 @@ def overdue(deadline, now):
 
 
 def task_visible(task, profile, now):
+    if task.recurrence_id and task.occurrence_on and now.astimezone(ZoneInfo(task.occurrence_timezone)).date() < task.occurrence_on:
+        return False
     if task.state in ("active", "in_progress"):
         return True
     return (task.state == "deferred" and task.return_on is not None and profile.timezone is not None
@@ -218,6 +220,7 @@ def overview(s, profile, now, ignore_attempt=None):
                 missed.extend(missed_items(s, guide))
     return {
         "timezone": profile.timezone, "needs_timezone": zone is None,
+        "planning_suggestions": planning_view(s, profile, now),
         "sync_errors": mail_sync_errors(s, profile.id),
         "main": [snapshot(by_id[identity]) for identity in main],
         "deadlines": [{**snapshot(t), "overdue": overdue(t.deadline, now)} for t in dated],
@@ -229,7 +232,7 @@ def overview(s, profile, now, ignore_attempt=None):
 
 
 def render_overview(view):
-    if not any(view.get(key) for key in ("main", "deadlines", "forgotten", "waiting", "proposals", "guidance", "sync_errors")):
+    if not any(view.get(key) for key in ("main", "deadlines", "forgotten", "waiting", "proposals", "guidance", "sync_errors", "planning_suggestions")):
         return None
     sections = []
     if view["main"]:
@@ -246,6 +249,8 @@ def render_overview(view):
         sections.append(f"Ожиданий: {len(view['waiting'])}")
     if view["proposals"]:
         sections.append(f"Предложений для решения: {len(view['proposals'])}")
+    if view.get("planning_suggestions"):
+        sections.append(f"Предложений следующего шага и плана: {len(view['planning_suggestions'])}. Применяются после подтверждения в вебе.")
     sections.extend(error["message"] for error in view.get("sync_errors", []))
     sections.extend(g["message"] for g in view["guidance"])
     sections.append(f"Других дел: {view['other_count']}. Полный список доступен в обзоре.")
@@ -259,6 +264,11 @@ def mail_sync_errors(s, owner):
         return []
     message = "Почта: доступ отклонён, синхронизация остановлена. Проверьте подключение в настройках." if account.status == "auth_error" else "Почта: синхронизация задержана. Сохранённые предложения доступны; состояние в настройках."
     return [{"code": account.error_code, "message": message}]
+
+
+def planning_view(s, profile, now):
+    from .suggestions import pending
+    return pending(s, profile, now)
 
 
 def record_presentation(s, view, now, outcome):

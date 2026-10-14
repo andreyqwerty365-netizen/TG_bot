@@ -25,6 +25,7 @@ class CommandValues:
     return_on: date | None = None
     focused: bool | None = None
     project_id: str | None = None
+    draft_steps: list[str] | None = None
 
 
 def snapshot(task):
@@ -37,6 +38,11 @@ def snapshot(task):
         "focused": task.focused, "plan_postponements": task.plan_postponements,
         "draft_steps": task.draft_steps,
         "project_id": task.project_id,
+        "recurrence_id": task.recurrence_id,
+        "occurrence_on": task.occurrence_on.isoformat() if task.occurrence_on else None,
+        "occurrence_timezone": task.occurrence_timezone, "recurrence_warning": task.recurrence_warning,
+        "parent_task_id": task.parent_task_id, "step_batch": task.step_batch, "step_index": task.step_index,
+        "steps_revision": task.steps_revision, "promoted_steps_revision": task.promoted_steps_revision,
     }
 
 
@@ -285,15 +291,20 @@ class CRMService:
                 "proposal_id": proposal.id, "version": proposal.version, "proposal": payload,
                 "target_title": self.task(s, owner_id, proposal.task_id).title if proposal.task_id else output.title}
 
-    def _create(self, s, owner_id, source_version_id, output, reason, reference, allow_reminder=False, project_id=None):
+    def _create(self, s, owner_id, source_version_id, output, reason, reference, allow_reminder=False, project_id=None,
+                recurrence=None, occurrence_on=None, parent_task=None, step_index=None):
         deadline = output.deadline.model_dump() if output.deadline else None
         task = Task(owner_id=owner_id, source_version_id=source_version_id, project_id=project_id,
                     title=output.title, kind=output.kind, original_deadline=deadline,
                     deadline=deadline, version=1, state="active", created_at=self.clock())
+        if recurrence:
+            task.recurrence_id, task.occurrence_on, task.occurrence_timezone = recurrence.id, occurrence_on, recurrence.timezone
+        if parent_task:
+            task.parent_task_id, task.step_batch, task.step_index = parent_task.id, parent_task.steps_revision, step_index
         task.draft_steps = output.draft_steps
         if output.planned_on or output.return_on:
             profile = s.get(Profile, owner_id)
-            if not profile.timezone:
+            if not profile.timezone and not recurrence:
                 raise CRMError("profile_timezone_required", 422)
             task.planned_on = output.planned_on
             if output.return_on:
@@ -415,10 +426,14 @@ class CRMService:
         elif action == "reminder":
             if not values.reminder_at:
                 raise CRMError("reminder_required", 422)
+            task.recurrence_warning = None
         elif action == "deadline":
             task.deadline = values.deadline.model_dump() if values.deadline else None
         elif action == "title" and values.title:
             task.title = values.title
+        elif action == "steps" and values.draft_steps:
+            task.draft_steps = values.draft_steps
+            task.steps_revision += 1
         elif action == "edit" and values.title and values.reminder_at:
             task.title = values.title
         elif action == "clear_reminder":
@@ -481,6 +496,9 @@ class CRMService:
             self._cancel_guidance(s, task, kind="overdue")
         self._history(s, task, before, "owner", reason, reference,
                       values.reminder_at.isoformat() if action in ("reminder", "edit") else None)
+        if action in ("close", "cancel") and task.recurrence_id:
+            from .recurrence import advance
+            advance(s, self, task)
 
     def _schedule(self, s, task, at):
         reminder = Reminder(owner_id=task.owner_id, task_id=task.id,

@@ -213,4 +213,8 @@ def create_app(settings=None, interpreter=None, mail_provider=None):
 
     from .workspace_api import install_workspace
     install_workspace(app, service, settings, actor)
+    from .planning_api import install_planning
+    install_planning(app, service, actor)
+    from .suggestions import install_suggestions
+    install_suggestions(app, service, actor, settings.planning)
     return app

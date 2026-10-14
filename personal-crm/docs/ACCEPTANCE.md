@@ -1,5 +1,27 @@
 # Приёмка Personal CRM
 
+## Регулярность и подтверждаемый план, 14 октября 2026
+
+**219 CRM passed, 1 прежнее Starlette/AnyIO предупреждение, 65.06s** на настоящей PostgreSQL 16.10. **133 legacy passed, 9.22s**, бот не запускался. **9 React unit passed**, TypeScript/Vite build прошёл. **14 browser E2E passed, 20.5s**: семь сценариев на desktop и mobile, с настоящим HTTP/PostgreSQL. Реальные почта/Telegram/GPT остаются выключенными.
+
+| Возможность | Доказательство |
+|---|---|
+| Выполнение экземпляра оставляет ряд, один следующий экземпляр | `test_completion_creates_one_future_occurrence_preserves_rule_and_no_deadline`, `test_two_competing_completions_create_one_instance`; browser recurring flow |
+| Месячная опора, високосный февраль, пропуски без очереди | `test_calendar_anchor_and_missed_periods_do_not_create_a_backlog` (4 календарных случая) |
+| DST без выдуманного сдвига, отдельная отмена/остановка | `test_dst_gap_is_visible_and_does_not_silently_shift_notification`, `test_cancel_occurrence_and_stop_series_are_different_explicit_actions` |
+| Атомарность закрытия и следующего экземпляра, шаблон только для будущего | `test_next_instance_history_failure_rolls_back_completion`, `test_recurring_template_edits_leave_current_task_and_reminder_unchanged` |
+| Дочерние дела только после подтверждения целого плана | `test_steps_are_drafts_until_whole_plan_confirmation_and_replay_is_idempotent`, `test_stale_plan_confirmation_cannot_promote_new_steps`; browser draft/confirm/child navigation |
+| Модельная правка черновика остаётся предложением | `test_model_changes_to_existing_step_plan_require_confirmation`; реальная модель выключена |
+| Ранний план сохраняет дедлайн, малый шаг не создаёт детей | `test_early_plan_requires_confirmation_and_preserves_the_external_deadline`, `test_small_step_only_starts_after_confirmation_and_does_not_create_subtasks` |
+| Версии, скрытие без повторного навязывания, чужой владелец | `test_suggestion_is_version_bound_and_dismissal_is_not_regenerated`, `test_unrelated_owner_cannot_use_rules_steps_or_suggestions` |
+| Предпочтительное время — по явным выборам, без переноса уведомлений | `test_adaptation_uses_explicit_choices_and_never_moves_existing_reminders`, `test_manually_selected_preference_is_not_overridden_by_adaptation` |
+| Повторное «выполнил» не закрывает завтрашнее дело | `test_repeated_generic_completion_does_not_close_tomorrows_instance` |
+| Сводка с единственным предложением не теряется, политика настраивается | `test_preference_only_daily_overview_is_not_silently_empty`, `test_early_planning_policy_is_server_configurable` |
+
+Новые миграции `a8273f1d804c` и `b9184f723ade` аддитивны. Полный pytest проверил down/up/check и сохранность старых записей. Повторно прошли core demo, Stage 2 demo, 28-дневная симуляция (28 digests, 13 forgotten, 1 overdue, 1 obstacle, 3 missed, 0 auto completion, 0 external calls) и mail demo с отдельным процессом восстановления. Pip check прошёл. Скриншоты просмотрены; найденный чёрный фон native dialog воспроизведён CSS assertion в настоящем браузере и исправлен явным светлым фоном.
+
+Точные команды и семантика: [PLANNING.md](PLANNING.md). NLP произвольного правила повторения не заявляется; правило задаётся вебом/HTTP. Live интеграции, Docker в этой Windows-сессии, encrypted backup/restore, импорт копии legacy и production-пилот не выполнялись. Следующий незавершённый объём — этап E.
+
 ## Почта без подключения реального ящика, 14 октября 2026
 
 **197 CRM passed, 1 прежнее предупреждение Starlette/AnyIO, 48.53s** на PostgreSQL 16.10. **133 legacy passed, 8.55s**, бот не запускался. **6 React unit passed**, TypeScript/Vite build прошёл. **10 browser E2E passed, 19.6s** после перезапуска опубликованного кода, на desktop/mobile с настоящими HTTP/PostgreSQL; почтовый транспорт исключительно синтетический. Локальная фабрика для проверки явно отказывает вне test-БД и синтетического профиля.
@@ -115,7 +137,7 @@ O-T01–O-T06/O-T08 закрыты на локальном стенде в об�
 | T17 | Выполнение до повтора | Старый повтор не отправляется. | Ядро проверено — test_close_before_repeat_cancels, test_close_before_initial_send_cancels |
 | T18 | Три переноса плана выполнения | Один раз предложить разбор, переносы уведомлений не засчитываются. | Ядро проверено — test_plan_moves_count_without_changing_deadline, test_obstacle_prompt_once_not_daily_and_no_auto_state_change; вопрос не выбирает действие за владельца |
 | T19 | Просрочка | Исходный срок сохранён, нет одинакового отдельного предупреждения каждый день. | Ядро проверено — test_overdue_announcement_once_and_original_deadline_retained, test_full_initiative_budget_reports_overdue_in_digest_once, test_reminder_move_preserves_original_deadline |
-| T20 | Регулярная задача | Закрытие экземпляра не отменяет следующие периоды. | Не проверено |
+| T20 | Регулярная задача | Закрытие экземпляра не отменяет следующие периоды. | Проверено на PostgreSQL/HTTP и desktop/mobile E2E: completion/cancel экземпляра, отдельный stop, monthly/leap/DST, конкуренция/rollback; разговорное создание произвольного правила Not Run |
 | T21 | Перезапуск/остановка обработчика | Сохранённые задания восстанавливаются, устаревшее не отправляется массово. | Ядро проверено — lease/fencing/SKIP LOCKED, test_outage_consolidates_old_exact_reminders_and_keeps_tasks, test_two_workers_consolidate_one_outage_report; реальные каналы не подключены |
 | T22 | Неопределённый исход отправки | Честное состояние, не бесконечные повторы. | Ядро проверено — bounded retries/unknown, test_crash_during_digest_reservation_does_not_resend_one_time_question, test_closing_after_crashed_intent_keeps_unknown_outcome_instead_of_pending_forever |
 | T23 | Пояс с сезонным переводом времени | Даты и сводка по политике профиля, без дублей; неизвестный пояс не заменяется серверным. | Stage 2: relative/IANA и DST gaps/folds проверены — test_dst_gap_fold_and_unknown_timezone_ask; миграция пользовательского пояса остаётся отдельно |
@@ -179,11 +201,11 @@ Fake-модель проверяет маршрутизацию и полити�
 | R05 | Неизвестная fixture вызывает уточнение без блокировки другого ввода; T03. |
 | R06 | Любой propose_update ждёт подтверждения; T13–T14. |
 | R07 | Explicit HTTP commands исполняются сразу после проверки версии; T12, T17. Ограниченные разговорные команды/версии проверены в Stage 2. |
-| R08 | draft_steps только текст: test_sdk_strict_payload_source_cache_and_drafts; дочерние обязательства не создаются. |
-| R09 | Подтверждение предложенных reminder/deadline есть; адаптация и ручной экран настроек не реализованы. |
+| R08 | Модельные draft_steps остаются черновиком; изменение существующего плана только через подтверждение, весь набор дочерних задач создаётся отдельным явным решением. Tests stage D + SDK fixtures; NLP качество Not Run. |
+| R09 | Ручные настройки и версия профиля; ограниченное предложение предпочтительного времени по трём явным выборам. Только подтверждение, существующие уведомления и лимиты не изменяются. |
 | R10 | Quiet hours отсутствуют; Worker/policy. Настоящей доставки нет. |
 | R11 | Три main, сроки, forgotten, waiting, proposals/guidance; T15. Внешняя доставка только fake. |
-| R12 | Все дедлайны присутствуют в полном overview, просрочка вычисляется отдельно. Предложения раннего выполнения/малого шага ещё не реализованы. |
+| R12 | Все дедлайны в overview; ранний план и малый шаг предлагаются локально, применяются после подтверждения, deadline сохраняется. test_early_plan_requires_confirmation_and_preserves_the_external_deadline, test_small_step_only_starts_after_confirmation_and_does_not_create_subtasks. |
 | R13 | Единственный repeat через 4 часа, T16–T17. |
 | R14 | Счётчик поздних plan-переносов, один вопрос после каждых трёх; T18. Уменьшение шага автоматически не выполняется; разговорный ответ ещё не реализован. |
 | R15 | Ротация двух undated задач по успешному представлению/обсуждению; test_successful_digest_rotates_forgotten_manual_overview_changes_nothing и 28-дневная симуляция. |
@@ -207,7 +229,7 @@ Fake-модель проверяет маршрутизацию и полити�
 | D09 | Digest показывает число pending proposals; приоритет срочного письма не реализован. |
 | D10 | Внешний календарь не подключён; внутренние события следующий этап. |
 | D11 | Default fake; отдельный test-bot TelegramTransport проверен mocked HTTP, live/web push Not Run. |
-| D12 | Текстовые draft_steps и proposal подтверждение plan есть; автоматического назначения дочерних задач нет. |
+| D12 | До 12 черновых шагов; одно подтверждение текущей версии создаёт весь набор детей без придуманных сроков. Replay request_id не дублирует набор. |
 | D13 | kind=note/task/waiting и отсутствие придуманного дедлайна; T02/T09. Общая классификация fake-моделью не доказана. |
 | D14 | Серверная привязка владельца, deny by default; T28. |
 | D15 | Реальные AI/почта/Telegram выключены. IMAP требует enabled+read consent до создания клиента; test_real_provider_is_disabled_before_any_network. Live/paid calls не выполнялись. |

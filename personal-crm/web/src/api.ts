@@ -1,7 +1,12 @@
 export type Deadline = { precision:'date'|'instant'; value:string; original:string; timezone:string };
 export type Task = { id:string; title:string; kind:'task'|'waiting'|'note'; state:'active'|'in_progress'|'deferred'|'done'|'cancelled';
   version:number; deadline:Deadline|null; original_deadline?:Deadline|null; planned_on:string|null; return_on?:string|null;
-  reminder_at?:string|null; project_id:string|null; focused:boolean; draft_steps:string[]; overdue?:boolean };
+  reminder_at?:string|null; project_id:string|null; focused:boolean; draft_steps:string[]; overdue?:boolean;
+  recurrence_id?:string|null;occurrence_on?:string|null;occurrence_timezone?:string|null;recurrence_warning?:string|null;
+  parent_task_id?:string|null;steps_revision?:number;promoted_steps_revision?:number|null };
+export type Recurrence = {id:string;version:number;status:'active'|'stopped';frequency:'daily'|'weekly'|'monthly';interval:number;
+  anchor_on:string;timezone:string;reminder_time:string|null;template:{title:string}};
+export type PlanningSuggestion = {id:string;version:number;kind:'early'|'step'|'reminder_time';task_id:string|null;payload:Record<string,unknown>};
 export type Project = {id:string; name:string; description:string; version:number; active_tasks:number};
 export type MailEvidenceData = {subject:string;sender:string;excerpt:string;original_at:string|null;direction:string;
   thread_id?:string;attachments_unanalysed:boolean;content_incomplete:boolean};
@@ -12,13 +17,13 @@ export type Proposal = {id:string; version:number; payload:Record<string, unknow
 export type Inbox = {proposals:Proposal[]; questions:{id:string;source_version_id:string;text:string;question:string}[];
   errors:{id:string;text:string;error_code:string;retry_at:string|null}[];mail_reviews?:{id:string;evidence:MailEvidenceData}[]};
 export type Preferences = { version:number; timezone:string|null; digest_hour:number; initiative_limit:number; catchup_grace_seconds:number;
-  ai_paused:boolean;ai_budget_cap_micro_usd:number|null;
+  ai_paused:boolean;ai_budget_cap_micro_usd:number|null;preferred_reminder_time?:string|null;
   integrations:{telegram_receive:boolean;telegram_send:boolean;mail:boolean;openai:boolean};
   ai:{model:string;configured_budget_usd:string;consent_categories:string[];budget:{spent_micro_usd:number;reserved_micro_usd:number;limit_micro_usd?:number;warning_80?:boolean;blocked?:boolean}} };
 export type Overview = {main:Task[];deadlines:Task[];forgotten:Task[];waiting:Task[];proposals:Proposal[];
-  guidance:{id:string;message:string}[];other_count:number;sync_errors?:{code:string;message:string}[]};
+  guidance:{id:string;message:string}[];other_count:number;sync_errors?:{code:string;message:string}[];planning_suggestions?:PlanningSuggestion[]};
 export type Detail = Task & {source:{id:string;text:string;channel:string;received_at:string};
-  history:{id:string;reason:string;task_version:number;created_at:string;after:Task}[]};
+  history:{id:string;reason:string;task_version:number;created_at:string;after:Task}[];recurrence?:Recurrence|null;children?:Task[]};
 export type Page = {items:Task[];total:number;offset:number;limit:number};
 
 const messages:Record<string,string> = {
@@ -35,6 +40,10 @@ const messages:Record<string,string> = {
   mail_disabled:'Чтение почты выключено. Подключение требует отдельной настройки и разрешения владельца.',
   mail_configuration_invalid:'Проверьте серверную настройку IMAP и точное имя папки отправленных.',
   mail_account_mismatch:'Настроен другой ящик. Переключение требует отдельной процедуры; прежние данные сохранены.',
+  recurrence_already_exists:'У этого дела уже есть правило повторения. Измените существующее правило.',
+  recurrence_out_of_range:'Расписание выходит за допустимые границы календаря.',
+  recurrence_has_no_open_task:'В этой серии нет открытого экземпляра. Создайте новое дело для продолжения.',
+  step_plan_required:'Сначала сохраните непустой черновик шагов для активного дела.',
 };
 export class ApiError extends Error { constructor(public status:number, public code:string) {super(messages[code] || 'Не удалось сохранить изменение. Проверьте значения и повторите попытку.');} }
 export function makeApi(token:string) {

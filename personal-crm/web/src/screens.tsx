@@ -3,6 +3,7 @@ import { ApiError, displayDate, stateLabels, type Api, type Inbox, type Overview
 import { useLoad } from './hooks';
 import { Dialog, Empty, Notice, TaskRows } from './components';
 import { MailEvidence, MailPanel, MailReview } from './mail';
+import { PlanningBoard } from './planning';
 
 export type ScreenProps={api:Api;preferences:Preferences;projects:Project[];revision:number;open:(id:string)=>void;changed:(message:string)=>void};
 
@@ -18,7 +19,8 @@ export function Today(props:ScreenProps) {
       {view.main.length?<TaskRows tasks={view.main} zone={props.preferences.timezone} open={props.open}/>:<Empty title="Можно начать с одного дела">Добавьте задачу, которой хотите заняться сегодня.</Empty>}
       <footer className="panel-footer">{view.other_count?`Ещё ${view.other_count} дел — в полном списке.`:'Вы можете выбрать фокус в карточке любого дела.'}</footer>
     </section>
-    {view.guidance.length?<section className="panel"><h2>Следующий шаг</h2>{view.guidance.map(g=><p className="guidance" key={g.id}>{g.message}</p>)}</section>:null}
+    <PlanningBoard items={view.planning_suggestions || []} api={props.api} changed={props.changed} zone={props.preferences.timezone}/>
+    {view.guidance.length?<section className="panel"><h2>Разобраться с препятствием</h2>{view.guidance.map(g=><p className="guidance" key={g.id}>{g.message}</p>)}</section>:null}
     <section className="panel"><header className="section-heading"><div><span className="eyebrow">Без спешки</span><h2>Вернуться к забытым делам</h2></div></header>
       {view.forgotten.length?<TaskRows tasks={view.forgotten} zone={props.preferences.timezone} open={props.open}/>:<Empty title="Ничего не потерялось">Дела без срока будут возвращаться сюда по мере необходимости.</Empty>}
     </section></div>
@@ -65,7 +67,8 @@ export function Incoming(props:ScreenProps) {
   return <><p className="section-intro">Предложения становятся делами после вашего решения. Сохранённые сообщения можно уточнить или повторно разобрать.</p>{error?<Notice error>{error}</Notice>:null}
     <section className="panel inbox-panel">{!data.proposals.length&&!data.questions.length&&!data.errors.length&&!data.mail_reviews?.length?<Empty title="Входящие разобраны">Здесь появятся предложения, уточнения и сообщения с незавершённым разбором.</Empty>:null}
     {data.proposals.map(p=><article className="inbox-item" key={p.id}><span className="eyebrow">Предложение</span><h3>{String(p.payload.title || 'Изменение существующего дела')}</h3>
-      <p>{{close:'Отметить дело выполненным',reminder:'Изменить время напоминания',deadline:'Изменить дедлайн',title:'Изменить название',edit:'Изменить название и напоминание',plan:'Изменить день выполнения',defer:'Отложить дело',cancel:'Отменить дело'}[String(p.payload.change)] || 'Создать новое дело'}</p>
+      <p>{{close:'Отметить дело выполненным',reminder:'Изменить время напоминания',deadline:'Изменить дедлайн',title:'Изменить название',edit:'Изменить название и напоминание',plan:'Изменить день выполнения',defer:'Отложить дело',cancel:'Отменить дело',steps:'Обновить черновик шагов'}[String(p.payload.change)] || 'Создать новое дело'}</p>
+      {Array.isArray(p.payload.draft_steps)&&p.payload.draft_steps.length?<ol>{p.payload.draft_steps.map((step,i)=><li key={i}>{String(step)}</li>)}</ol>:null}
       {p.payload.reminder_at?<p>Напомнить: {displayDate(String(p.payload.reminder_at),props.preferences.timezone,true)}</p>:null}
       {p.payload.deadline?<p>Срок: {String((p.payload.deadline as {value:string}).value)}</p>:null}
       {p.payload.planned_on?<p>План: {displayDate(String(p.payload.planned_on),props.preferences.timezone)}</p>:null}
@@ -94,11 +97,13 @@ export function SettingsScreen(props:ScreenProps) {
   const budget=prefs.ai.budget;
   const initialCap=prefs.ai_budget_cap_micro_usd==null?'':String(prefs.ai_budget_cap_micro_usd/1e6);
   const [paused,setPaused]=useState(prefs.ai_paused || false);const [cap,setCap]=useState(initialCap);
+  const [preferredTime,setPreferredTime]=useState(prefs.preferred_reminder_time || '');
   async function save(e:FormEvent) {e.preventDefault();setBusy(true);setError('');try{await props.api('/workspace/settings','PATCH',{version:prefs.version,timezone,digest_hour:hour,initiative_limit:limit,catchup_grace_seconds:grace*60,ai_paused:paused,
-    ...(cap!==initialCap?{ai_budget_cap_micro_usd:cap===''?null:Math.round(Number(cap)*1e6)}:{})});props.changed('Настройки сохранены');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+    preferred_reminder_time:preferredTime || null,...(cap!==initialCap?{ai_budget_cap_micro_usd:cap===''?null:Math.round(Number(cap)*1e6)}:{})});props.changed('Настройки сохранены');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
   return <div className="settings-layout"><section className="panel"><h2>Ваш ритм</h2><form className="task-form" onSubmit={save}><fieldset disabled={busy}>
     <label>Часовой пояс<input required list="timezones" value={timezone} onChange={e=>setTimezone(e.target.value)}/><datalist id="timezones"><option>Europe/Moscow</option><option>Europe/Berlin</option><option>Asia/Yekaterinburg</option><option>Asia/Novosibirsk</option><option>UTC</option></datalist><small>Пояс указан явно. При его изменении уже назначенные точные уведомления сохраняют свой момент.</small></label>
     <label>Час ежедневной сводки<input type="number" min={0} max={23} required value={hour} onChange={e=>setHour(Number(e.target.value))}/></label>
+    <label>Предпочтительное время новых напоминаний<input type="time" value={preferredTime} onChange={e=>setPreferredTime(e.target.value)}/><small>Предлагается для проверки в форме повторений. Уже назначенные уведомления не перемещаются. Пустое поле не задаёт время.</small></label>
     <label>Дополнительные напоминания в сутки<select value={limit} onChange={e=>setLimit(Number(e.target.value))}><option value={0}>0 — только точные уведомления и сводка</option><option value={1}>Не больше одного</option><option value={2}>Не больше двух</option></select><small>Ваши точные напоминания не расходуют этот лимит. Автоматический повтор расходует.</small></label>
     <label>Допустимое опоздание после простоя, минут<input type="number" min={1} max={1440} required value={grace} onChange={e=>setGrace(Number(e.target.value))}/></label>
     <label className="checkbox-label"><input type="checkbox" checked={paused} onChange={e=>setPaused(e.target.checked)}/>Приостановить разбор с ИИ</label>
