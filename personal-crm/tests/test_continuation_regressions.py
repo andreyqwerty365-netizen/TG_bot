@@ -235,3 +235,53 @@ def test_rate_limit_automatically_retries_once_after_backoff(factory, clock):
     assert service.recover_sources(AI_OWNER)["processed"] == 1
     assert len(calls) == 2
     assert adapter.ledger.status(AI_OWNER)["spent_micro_usd"] == 190
+
+
+@pytest.mark.parametrize("setting,code", [("pause", "ai_disabled"), ("cap", "ai_budget_limit")])
+def test_owner_preferences_block_paid_request_before_client_creation(factory, clock, setting, code):
+    from personal_crm.models import Profile
+    def forbidden(request):
+        pytest.fail("Owner preference must block SDK invocation")
+    service, adapter = setup(factory, clock, forbidden)
+    with factory.begin() as s:
+        profile = s.get(Profile, AI_OWNER)
+        if setting == "pause":
+            profile.ai_paused = True
+        else:
+            profile.ai_budget_cap_micro_usd = 0
+    source = save(service)
+    assert service.process(AI_OWNER, source)["code"] == code
+
+
+def test_edit_original_after_short_clarification_keeps_one_task(ru_service, factory):
+    origin = accept(ru_service, "Завтра напомни обновить резюме")
+    created = accept(ru_service, "в 19:00", 2)
+    assert created["status"] == "created"
+    edit = accept(ru_service, "Завтра в 20:00 напомни обновить резюме", 3, edited=True)
+    assert edit["status"] == "proposal" and edit["proposal"]["target_id"] == created["task"]["id"]
+    with factory() as s:
+        assert s.get(Task, created["task"]["id"]).source_version_id == origin["source_version_id"]
+        assert s.scalar(select(func.count(Task.id))) == 1
+
+
+def test_concurrent_answers_resolve_creation_once(ru_service, factory, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    import personal_crm.language as language
+    from personal_crm.schema import Incoming
+    origin = accept(ru_service, "Завтра напомни обновить резюме")
+    answers = [ru_service.ingest(OWNER, "owner", Incoming(external_id=f"answer-{i}", account="telegram:303:202", text="в 19:00"),
+        metadata={"reply_source_version_id": origin["source_version_id"]}) for i in range(2)]
+    barrier = Barrier(2)
+    deterministic = language.deterministic
+    def concurrent(context):
+        result = deterministic(context)
+        if result and result.operation == "create" and result.dialogue_id:
+            barrier.wait(5)
+        return result
+    monkeypatch.setattr(language, "deterministic", concurrent)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda identity: ru_service.process(OWNER, identity), answers))
+    assert sorted(r["status"] for r in results) == ["conflict", "created"]
+    with factory() as s:
+        assert s.scalar(select(func.count(Task.id))) == 1

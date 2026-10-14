@@ -1,0 +1,53 @@
+export type Deadline = { precision:'date'|'instant'; value:string; original:string; timezone:string };
+export type Task = { id:string; title:string; kind:'task'|'waiting'|'note'; state:'active'|'in_progress'|'deferred'|'done'|'cancelled';
+  version:number; deadline:Deadline|null; original_deadline?:Deadline|null; planned_on:string|null; return_on?:string|null;
+  reminder_at?:string|null; project_id:string|null; focused:boolean; draft_steps:string[]; overdue?:boolean };
+export type Project = {id:string; name:string; description:string; version:number; active_tasks:number};
+export type Proposal = {id:string; version:number; payload:Record<string, unknown>};
+export type Inbox = {proposals:Proposal[]; questions:{id:string;source_version_id:string;text:string;question:string}[];
+  errors:{id:string;text:string;error_code:string;retry_at:string|null}[]};
+export type Preferences = { version:number; timezone:string|null; digest_hour:number; initiative_limit:number; catchup_grace_seconds:number;
+  ai_paused:boolean;ai_budget_cap_micro_usd:number|null;
+  integrations:{telegram_receive:boolean;telegram_send:boolean;mail:boolean;openai:boolean};
+  ai:{model:string;configured_budget_usd:string;consent_categories:string[];budget:{spent_micro_usd:number;reserved_micro_usd:number;limit_micro_usd?:number;warning_80?:boolean;blocked?:boolean}} };
+export type Overview = {main:Task[];deadlines:Task[];forgotten:Task[];waiting:Task[];proposals:Proposal[];
+  guidance:{id:string;message:string}[];other_count:number};
+export type Detail = Task & {source:{id:string;text:string;channel:string;received_at:string};
+  history:{id:string;reason:string;task_version:number;created_at:string;after:Task}[]};
+export type Page = {items:Task[];total:number;offset:number;limit:number};
+
+const messages:Record<string,string> = {
+  unauthorized:'Ключ доступа не подошёл. Введите ключ владельца.', owner_not_configured:'Настройте владельца и ключ доступа на сервере.',
+  database_unavailable:'База данных временно недоступна. Повторите попытку позже.', version_conflict:'Дело уже изменилось. Обновите карточку и проверьте правку.',
+  proposal_conflict:'Предложение уже обработано или изменилось. Обновите входящие.', task_inactive:'Это дело уже завершено или отменено.',
+  ambiguous_or_invalid_time:'Проверьте дату и время. При переводе часов выберите однозначное время.',
+  profile_timezone_required:'Сначала задайте часовой пояс в настройках.', invalid_timezone:'Укажите существующий часовой пояс, например Europe/Moscow.',
+  source_revision_conflict:'Этот запрос уже сохранён с другими значениями. Обновите форму.',
+  ai_disabled:'Разбор с помощью ИИ выключен. Исходное сообщение сохранено.',
+  ai_previous_attempt:'Результат предыдущего платного запроса неопределён. Автоматический повтор остановлен.',
+  ai_rate_limit:'Провайдер ограничил запросы. Назначен ограниченный повтор.',
+  budget_exceeds_server_limit:'Пользовательский лимит не может превышать разрешённый лимит сервера.',
+};
+export class ApiError extends Error { constructor(public status:number, public code:string) {super(messages[code] || 'Не удалось сохранить изменение. Проверьте значения и повторите попытку.');} }
+export function makeApi(token:string) {
+  return async function request<T>(path:string, method='GET', body?:unknown, signal?:AbortSignal):Promise<T> {
+    let response:Response;
+    try { response = await fetch(path,{method,signal,headers:{Authorization:`Bearer ${token}`,...(body ? {'Content-Type':'application/json'} : {})},...(body ? {body:JSON.stringify(body)} : {})}); }
+    catch(error) { if ((error as Error).name === 'AbortError') throw error; throw new Error('Нет связи с сервером. Проверьте подключение; результат сохранения пока неизвестен.'); }
+    const data = await response.json();
+    if (!response.ok) throw new ApiError(response.status, typeof data.detail === 'string' ? data.detail : 'invalid_input');
+    return data as T;
+  };
+}
+export type Api = ReturnType<typeof makeApi>;
+export const stateLabels:Record<Task['state'],string> = {active:'Активно',in_progress:'В работе',deferred:'Отложено',done:'Выполнено',cancelled:'Отменено'};
+export const kindLabels = {task:'Задача',waiting:'Ожидание',note:'Заметка'};
+export function localInput(value:string|null|undefined,zone:string|null):string {
+  if(!value) return '';
+  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:zone || 'UTC',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value));
+  const get=(name:string)=>parts.find(p=>p.type===name)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+export function displayDate(value:string,zone:string|null,instant=false):string {
+  return new Intl.DateTimeFormat('ru-RU',{timeZone:instant ? zone || 'UTC' : 'UTC',dateStyle:'medium',...(instant ? {timeStyle:'short'} : {})}).format(new Date(instant ? value : `${value}T12:00:00Z`));
+}

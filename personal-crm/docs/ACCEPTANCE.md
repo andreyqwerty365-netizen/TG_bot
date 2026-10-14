@@ -1,5 +1,26 @@
 # Приёмка Personal CRM
 
+## Веб и окончательная проверка продолжения, 14 октября 2026
+
+**165 CRM passed, 1 прежнее Starlette/AnyIO предупреждение, 39.04s** на настоящей PostgreSQL 16.10/Windows/Python 3.12. **133 legacy passed, 7.96s**, бот не запускался. **3 React unit passed**, TypeScript/Vite build прошёл. **8 browser E2E passed**: четыре сценария на desktop и на мобильном viewport, HTTP действительно идёт в локальный FastAPI/PostgreSQL без mock API.
+
+| Рабочая возможность | Доказательство |
+|---|---|
+| Произвольное ручное дело без включения модели, повтор HTTP без дубля | `test_manual_create_search_detail_and_idempotency`; browser create/search/edit/close |
+| Поиск, страницы, фильтры состояния/типа/источника/проекта/срока | `test_workspace_filters_pagination_and_sql_wildcards`, `test_deadline_filters_use_current_time_and_stored_timezone`, `test_unicode_case_insensitive_search` |
+| Отдельные deadline/plan/reminder, дата или точный момент по поясу | `test_workspace_edit_versions_and_separate_fields`, `test_deadline_local_distinguishes_date_and_instant`, `test_multi_field_web_edit_rolls_back_on_invalid_time` |
+| Проекты, привязка задач, отказ для чужих объектов | `test_projects_group_tasks_and_reject_foreign_objects`; browser project survives reload |
+| Входящие, связанный короткий ответ | `test_inbox_clarification_reply_uses_real_context`; browser clarification |
+| Настройки сохраняются и проверяют version | `test_settings_survive_new_requests_and_conflicts`; browser reload |
+| Пауза/снижение бюджета стоят до SDK, не включают провайдера | `test_preferences_can_pause_ai_and_cap_budget_without_enabling_provider`, `test_owner_preferences_block_paid_request_before_client_creation` |
+| Конкурентные веб-правки не затирают новые | browser stale edit; API version conflicts |
+| Источник после уточнения и ровно одно конкурентное создание | `test_edit_original_after_short_clarification_keeps_one_task`, `test_concurrent_answers_resolve_creation_once` |
+| Безопасные заголовки, no-store и приватность поиска в журнале | `test_web_requests_have_browser_security_headers`, `test_access_log_excludes_search_text`; React не пишет credential в local/sessionStorage |
+
+Миграции `c51d46c71af0`, `d721cde40377`, `e41978d2ab67` аддитивны; full pytest проверяет down/up/check и сохранение исходных записей. Core/Stage 2 demo, 28-дневная симуляция и pip check повторно прошли. Скриншоты desktop/mobile просмотрены; исправлены видимость всех пяти мобильных разделов и возврат фокуса после dialog. Локальный React bundle 260.41 kB JS (79.65 kB gzip) и 15.22 kB CSS; это размер сборки, не измерение сетевого p95.
+
+Не выполнены: реальная почта, live GPT/Telegram, независимые NLP-метрики, Docker image/Compose на этой машине, production, зашифрованные внешние backup/restore и legacy import. Ключи интеграций не подключались; модельные проверки используют официальный SDK с синтетическим HTTP. Следующие этапы C/D/E остаются открыты. Входящий/исходящий Telegram receiver не переключался.
+
 ## Продолжение: шесть критических регрессий, 14 октября 2026
 
 Новый независимый прогон на Windows/Python 3.12/PostgreSQL 16.10: **145 passed, 1 прежнее предупреждение, 29.87s**. Включает все прежние 124 теста и 21 новый сценарий в `tests/test_continuation_regressions.py`. До исправлений воспроизведены ложное завершение, пропуск короткого времени, ограничение старых задач, неверное поле edit и заблокированный unbilled retry. Результаты предыдущих прогонов ниже остаются историческими.

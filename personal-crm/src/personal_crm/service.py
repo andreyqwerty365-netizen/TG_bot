@@ -24,6 +24,7 @@ class CommandValues:
     planned_on: date | None = None
     return_on: date | None = None
     focused: bool | None = None
+    project_id: str | None = None
 
 
 def snapshot(task):
@@ -35,6 +36,7 @@ def snapshot(task):
         "return_on": task.return_on.isoformat() if task.return_on else None,
         "focused": task.focused, "plan_postponements": task.plan_postponements,
         "draft_steps": task.draft_steps,
+        "project_id": task.project_id,
     }
 
 
@@ -42,7 +44,7 @@ class CRMService:
     def __init__(self, factory, interpreter, clock=utcnow):
         self.factory, self.interpreter, self.clock = factory, interpreter, clock
 
-    def register(self, owner_id, timezone=None):
+    def register(self, owner_id, timezone=None, *, initialize_only=False):
         if not owner_id:
             raise CRMError("owner_not_configured", 503)
         if timezone:
@@ -50,7 +52,7 @@ class CRMService:
         with self.factory.begin() as s:
             s.execute(insert(Profile).values(id=owner_id, timezone=timezone).on_conflict_do_nothing())
             current = s.get(Profile, owner_id)
-            if timezone and current.timezone != timezone:
+            if timezone and current.timezone != timezone and not initialize_only:
                 raise CRMError("timezone_config_conflict")
 
     @staticmethod
@@ -225,9 +227,20 @@ class CRMService:
             proposal = Proposal(owner_id=owner_id, source_version_id=version.id,
                                 task_id=target.id, expected_version=target.version, payload=payload)
         else:
+            creation_version_id, creation_source = version.id, source
+            if output.dialogue_id and trusted_rule:
+                dialogue = self._bound_dialogue(s, owner_id, source.account, output.dialogue_id)
+                if not dialogue or not dialogue.pending_action or dialogue.pending_action.get("operation") != "create":
+                    return {"status": "conflict", "code": "dialogue_conflict"}
+                origin = dialogue.pending_action.get("origin_source_version_id", dialogue.source_version_id)
+                origin_version = s.scalar(select(SourceVersion).join(Source).where(SourceVersion.id == origin,
+                    Source.owner_id == owner_id, Source.account == source.account, Source.channel == "owner"))
+                if not origin_version:
+                    raise CRMError("unbound_creation")
+                creation_version_id, creation_source = origin_version.id, s.get(Source, origin_version.source_id)
             # An edited source creates a version-bound proposal, never a second active task.
             existing = s.scalar(select(Task).join(SourceVersion).where(
-                SourceVersion.source_id == source.id, Task.owner_id == owner_id
+                SourceVersion.source_id == creation_source.id, Task.owner_id == owner_id
             ))
             if existing:
                 change = ("reminder" if output.title == existing.title else "edit") if output.reminder_at else "title"
@@ -236,7 +249,7 @@ class CRMService:
                 proposal = Proposal(owner_id=owner_id, source_version_id=version.id,
                                     task_id=existing.id, expected_version=existing.version, payload=payload)
             elif source.channel != "mail" and output.obvious and (not output.reminder_at or (trusted_rule and source.channel == "owner")) and not (output.planned_on or output.return_on or output.focused is not None):
-                task = self._create(s, owner_id, version.id, output, "source", version.id,
+                task = self._create(s, owner_id, creation_version_id, output, "source", version.id,
                                     allow_reminder=trusted_rule and source.channel == "owner")
                 return {"status": "created", "source_version_id": version.id, "task": snapshot(task)}
             else:
@@ -247,9 +260,9 @@ class CRMService:
                 "proposal_id": proposal.id, "version": proposal.version, "proposal": payload,
                 "target_title": self.task(s, owner_id, proposal.task_id).title if proposal.task_id else output.title}
 
-    def _create(self, s, owner_id, source_version_id, output, reason, reference, allow_reminder=False):
+    def _create(self, s, owner_id, source_version_id, output, reason, reference, allow_reminder=False, project_id=None):
         deadline = output.deadline.model_dump() if output.deadline else None
-        task = Task(owner_id=owner_id, source_version_id=source_version_id,
+        task = Task(owner_id=owner_id, source_version_id=source_version_id, project_id=project_id,
                     title=output.title, kind=output.kind, original_deadline=deadline,
                     deadline=deadline, version=1, state="active", created_at=self.clock())
         task.draft_steps = output.draft_steps
@@ -271,7 +284,7 @@ class CRMService:
             if not allow_reminder:
                 raise CRMError("schedule_requires_owner_confirmation")
             self._schedule(s, task, output.reminder_at)
-        self._history(s, task, None, "owner" if reason == "confirmation" else "source", reason, reference)
+        self._history(s, task, None, "owner" if reason in ("confirmation", "explicit_web_create") else "source", reason, reference)
         return task
 
     def confirm(self, owner_id, proposal_id, proposal_version, accept=True):
@@ -383,6 +396,16 @@ class CRMService:
             task.title = values.title
         elif action == "edit" and values.title and values.reminder_at:
             task.title = values.title
+        elif action == "clear_reminder":
+            pass
+        elif action == "clear_plan":
+            task.planned_on = None
+        elif action == "project":
+            task.project_id = values.project_id
+        elif action == "start":
+            task.state, task.return_on = "in_progress", None
+        elif action == "activate":
+            task.state, task.return_on = "active", None
         elif action == "cancel":
             task.state = "cancelled"
         elif action == "focus" and values.focused is not None:
@@ -408,17 +431,17 @@ class CRMService:
             raise CRMError("forbidden_action", 422)
         task.version += 1
         task.last_discussed_at = self.clock()
-        if action in ("close", "cancel", "defer", "reminder", "edit"):
+        if action in ("close", "cancel", "defer", "reminder", "edit", "clear_reminder"):
             self._cancel(s, task)
             if action in ("reminder", "edit"):
                 self._schedule(s, task, values.reminder_at)
-            else:
+            elif action in ("close", "cancel", "defer"):
                 self._cancel_guidance(s, task)
         else:
             # Existing reminder remains applicable to the explicitly revised task.
             s.execute(update(Reminder).where(Reminder.task_id == task.id, Reminder.active.is_(True))
                       .values(task_version=task.version))
-        if action == "plan":
+        if action in ("plan", "clear_plan"):
             ids = select(Reminder.id).where(Reminder.task_id == task.id)
             s.execute(update(Job).where(Job.reminder_id.in_(ids), Job.kind == "repeat",
                                        Job.status.in_(["pending", "leased"]))

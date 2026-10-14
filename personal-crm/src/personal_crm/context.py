@@ -64,7 +64,7 @@ def build_context(s, owner_id, source, version, profile, now):
     if words:
         # Resolve against all owned rows before applying the provider's context cap.
         for word in words:
-            task_query = task_query.where(Task.title.ilike("%" + word + "%"))
+            task_query = task_query.where(Task.title_search.contains(word.casefold(), autoescape=True))
     elif "перенеси напоминание" in version.text.lower():
         task_query = task_query.where(select(Reminder.id).where(Reminder.task_id == Task.id, Reminder.active.is_(True)).exists())
     task_rows = s.scalars(task_query.order_by(Task.created_at.desc(), Task.id).limit(9)).all()

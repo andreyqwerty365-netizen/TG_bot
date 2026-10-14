@@ -124,7 +124,7 @@ def deterministic(context):
     date_answer = re.fullmatch(r"(?:на |в )?(?:сегодня|завтра|послезавтра|" + "|".join(WEEKDAYS) + r"|\d{4}-\d{2}-\d{2})(?: в \d{1,2}:\d{2})?", lowered)
     time_answer = re.fullmatch(r"(?:в )?\d{1,2}:\d{2}", lowered)
     if bound and bound.pending_action and (date_answer or time_answer):
-        action = {k: v for k, v in bound.pending_action.items() if k != "resolved_date"}
+        action = {k: v for k, v in bound.pending_action.items() if k not in ("resolved_date", "origin_source_version_id")}
         phrase = lowered
         if time_answer:
             saved_day = bound.pending_action.get("resolved_date")
@@ -137,7 +137,8 @@ def deterministic(context):
             at = resolve_date_time(phrase, context, wall, action.get("change") not in ("plan", "deadline") or
                                    (action.get("change") == "deadline" and bool(re.search(r"\d{1,2}:\d{2}", lowered))))
         except AmbiguousDate as error:
-            pending = bound.pending_action if time_answer else remember_date(action, phrase, context)
+            pending = bound.pending_action if time_answer else remember_date(
+                {k: v for k, v in bound.pending_action.items() if k != "resolved_date"}, phrase, context)
             return question(context, str(error), pending, bound.id)
         if action.get("change") == "deadline":
             temporal = {"deadline": Deadline(precision="instant" if isinstance(at, datetime) else "date",
@@ -184,7 +185,7 @@ def deterministic(context):
         try:
             at = resolve_date_time(remind.group(1), context)
         except AmbiguousDate as error:
-            return question(context, str(error), remember_date(pending, remind.group(1), context))
+            return question(context, str(error), remember_date({**pending, "origin_source_version_id": context.source_version_id}, remind.group(1), context))
         return Interpretation(source_version_id=context.source_version_id, **pending, reminder_at=at)
     if context.channel == "owner" and lowered.startswith("надо "):
         title = text[5:].strip(" .!?")

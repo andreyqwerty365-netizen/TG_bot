@@ -23,7 +23,7 @@ def main():
     while True:
         failed = False
         try:
-            service.register(settings.owner_id, settings.timezone)
+            service.register(settings.owner_id, settings.timezone, initialize_only=True)
             result = service.recover_sources(settings.owner_id)
             if args.once or result["processed"]:
                 print(f"source worker processed={result['processed']}", flush=True)

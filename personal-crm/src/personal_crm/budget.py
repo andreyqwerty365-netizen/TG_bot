@@ -5,7 +5,7 @@ import json
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from .models import AIBudget, AIReservation, Source, SourceVersion
+from .models import AIBudget, AIReservation, Profile, Source, SourceVersion
 
 
 class AIError(Exception):
@@ -50,6 +50,15 @@ class BudgetLedger:
     def reserve(self, owner, source_id, model, limit, amount):
         period = self.clock().astimezone(UTC).date().replace(day=1)
         with self.factory.begin() as s:
+            profile = s.scalar(select(Profile).where(Profile.id == owner).with_for_update())
+            if not profile:
+                raise AIError("ai_configuration_invalid")
+            if profile.ai_paused:
+                raise AIError("ai_disabled")
+            if profile.ai_budget_cap_micro_usd is not None:
+                limit = min(limit, profile.ai_budget_cap_micro_usd)
+                if limit <= 0:
+                    raise AIError("ai_budget_limit")
             if (type(limit) is not int or type(amount) is not int or limit <= 0 or amount <= 0 or
                 not s.scalar(select(SourceVersion.id).join(Source).where(SourceVersion.id == source_id, Source.owner_id == owner))):
                 raise AIError("ai_configuration_invalid")
@@ -58,7 +67,7 @@ class BudgetLedger:
             # Lowered configuration takes effect immediately; increasing an existing month's limit
             # requires a deliberate new ledger setting, never a per-request bypass.
             budget.limit_micro_usd = min(budget.limit_micro_usd, limit)
-            existing = s.scalar(select(AIReservation).where(AIReservation.source_version_id == source_id))
+            existing = s.scalar(select(AIReservation).where(AIReservation.source_version_id == source_id).with_for_update())
             if existing:
                 if existing.owner_id != owner:
                     raise AIError("ai_previous_attempt")

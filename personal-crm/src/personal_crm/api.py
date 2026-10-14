@@ -1,4 +1,5 @@
 import hmac
+import logging
 from datetime import date
 from typing import Literal
 
@@ -24,7 +25,7 @@ class Intake(Incoming):
 
 class Command(Strict):
     version: int = Field(gt=0)
-    action: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus"]
+    action: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus", "start", "activate"]
     at: str | None = None
     deadline: Deadline | None = None
     title: str | None = Field(default=None, min_length=1, max_length=2000)
@@ -38,6 +39,16 @@ class Confirmation(Strict):
     accept: bool = True
 
 
+class AccessPrivacyFilter(logging.Filter):
+    def filter(self, record):
+        # Uvicorn's access tuple contains the raw URL, including typed task searches.
+        if isinstance(record.args, tuple) and len(record.args) == 5 and isinstance(record.args[2], str):
+            values = list(record.args)
+            values[2] = values[2].split("?", 1)[0]
+            record.args = tuple(values)
+        return True
+
+
 def create_app(settings=None, interpreter=None):
     settings = settings or Settings.from_env()
     factory = sessions(settings.database_url)
@@ -45,6 +56,21 @@ def create_app(settings=None, interpreter=None):
     service = CRMService(factory, interpreter)
     app = FastAPI(title="Personal CRM — fake adapters", version="0.1.0")
     app.state.service = service
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(item, AccessPrivacyFilter) for item in access_logger.filters):
+        access_logger.addFilter(AccessPrivacyFilter())
+
+    @app.middleware("http")
+    async def browser_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        if request.url.path not in ("/docs", "/redoc", "/openapi.json"):
+            response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        if request.headers.get("authorization"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     def actor(authorization: str | None = Header(default=None)):
         if not settings.owner_id or not settings.owner_token:
@@ -52,7 +78,7 @@ def create_app(settings=None, interpreter=None):
         expected = f"Bearer {settings.owner_token}"
         if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
             raise HTTPException(401, "unauthorized")
-        service.register(settings.owner_id, settings.timezone)
+        service.register(settings.owner_id, settings.timezone, initialize_only=True)
         return settings.owner_id
 
     @app.exception_handler(CRMError)
@@ -91,7 +117,7 @@ def create_app(settings=None, interpreter=None):
         ingress.authenticate_webhook(x_telegram_bot_api_secret_token)
         if not settings.owner_id or not settings.owner_token:
             raise HTTPException(503, "owner_not_configured")
-        service.register(settings.owner_id, settings.timezone)
+        service.register(settings.owner_id, settings.timezone, initialize_only=True)
         return ingress.accept(payload)
 
     @app.get("/ai/status")
@@ -106,7 +132,7 @@ def create_app(settings=None, interpreter=None):
             raise HTTPException(503, "connector_not_configured")
         if not x_connector_token or not hmac.compare_digest(x_connector_token.encode(), settings.mail_token.encode()):
             raise HTTPException(401, "unauthorized")
-        service.register(settings.owner_id, settings.timezone)
+        service.register(settings.owner_id, settings.timezone, initialize_only=True)
         version_id = service.ingest(settings.owner_id, "mail", body)
         return service.process(settings.owner_id, version_id)
 
@@ -176,4 +202,6 @@ def create_app(settings=None, interpreter=None):
     def confirm(proposal_id: str, body: Confirmation, owner=Depends(actor)):
         return service.confirm(owner, proposal_id, body.version, body.accept)
 
+    from .workspace_api import install_workspace
+    install_workspace(app, service, settings, actor)
     return app

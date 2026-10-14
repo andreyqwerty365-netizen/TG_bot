@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from sqlalchemy import (
     BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer,
-    JSON, String, Text, UniqueConstraint,
+    JSON, String, Text, UniqueConstraint, event,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -24,6 +24,9 @@ class Profile(Base):
     __tablename__ = "profiles"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     timezone: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    ai_paused: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    ai_budget_cap_micro_usd: Mapped[int | None] = mapped_column(BigInteger)
     digest_hour: Mapped[int] = mapped_column(default=12)
     initiative_limit: Mapped[int] = mapped_column(default=2)
     catchup_grace_seconds: Mapped[int] = mapped_column(default=3600, server_default="3600")
@@ -70,12 +73,24 @@ class SourceVersion(Base):
     )
 
 
+class Project(Base):
+    __tablename__ = "projects"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Task(Base):
     __tablename__ = "tasks"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
     source_version_id: Mapped[str] = mapped_column(ForeignKey("source_versions.id"), unique=True)
     title: Mapped[str] = mapped_column(Text)
+    title_search: Mapped[str] = mapped_column(Text, default="", server_default="")
     kind: Mapped[str] = mapped_column(String(16), default="task")
     state: Mapped[str] = mapped_column(String(16), default="active")
     version: Mapped[int] = mapped_column(default=1)
@@ -96,6 +111,12 @@ class Task(Base):
         CheckConstraint("version > 0"),
         CheckConstraint("plan_postponements >= 0 AND obstacle_at_count >= 0", name="ck_postponement_counts"),
     )
+
+
+@event.listens_for(Task, "before_insert")
+@event.listens_for(Task, "before_update")
+def normalize_task_title(mapper, connection, task):
+    task.title_search = task.title.casefold()
 
 
 class Proposal(Base):
