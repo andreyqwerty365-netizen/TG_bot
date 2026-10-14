@@ -252,7 +252,9 @@ def install_workspace(app, service, settings, actor):
     @app.get("/workspace/inbox")
     def inbox(owner=Depends(actor)):
         with factory() as s:
-            proposals = [{"id": p.id, "version": p.version, "status": p.status, "payload": p.payload}
+            from .mail_api import evidence, proposal_view
+            from .models import MailMessage
+            proposals = [proposal_view(s, p)
                          for p in s.scalars(select(Proposal).where(Proposal.owner_id == owner, Proposal.status == "pending").order_by(Proposal.id))]
             questions = [{"id": d.id, "source_version_id": v.id, "text": v.text,
                           "question": (v.result or {}).get("question", "Уточните действие"), "expires_at": d.expires_at}
@@ -261,7 +263,15 @@ def install_workspace(app, service, settings, actor):
             errors = [{"id": v.id, "text": v.text, "error_code": v.error_code, "retry_at": v.retry_at}
                       for v in s.scalars(select(SourceVersion).join(Source).where(Source.owner_id == owner,
                           SourceVersion.status == "error").order_by(SourceVersion.received_at.desc()).limit(100))]
-            return {"proposals": proposals, "questions": questions, "errors": errors}
+            reviews = [{"id": v.id, "evidence": evidence(v)} for v in s.scalars(select(SourceVersion).join(Source)
+                .join(MailMessage, MailMessage.source_id == Source.id).where(
+                Source.owner_id == owner, MailMessage.owner_id == owner, Source.channel == "mail",
+                SourceVersion.revision == MailMessage.revision, SourceVersion.status == "processed",
+                SourceVersion.result["status"].as_string() == "review",
+                SourceVersion.channel_metadata["cache_pruned"].as_boolean().is_not(True))
+                .order_by(SourceVersion.received_at.desc()).limit(100)) if (v.result or {}).get("status") == "review"
+                and not (v.channel_metadata or {}).get("cache_pruned")]
+            return {"proposals": proposals, "questions": questions, "errors": errors, "mail_reviews": reviews}
 
     @app.post("/workspace/sources/{identity}/reply")
     def clarify_reply(identity: str, body: Reply, owner=Depends(actor)):
@@ -279,7 +289,7 @@ def install_workspace(app, service, settings, actor):
                 "initiative_limit": profile.initiative_limit, "catchup_grace_seconds": profile.catchup_grace_seconds,
                 "ai_paused": profile.ai_paused, "ai_budget_cap_micro_usd": profile.ai_budget_cap_micro_usd,
                 "integrations": {"telegram_receive": settings.telegram.webhook_enabled, "telegram_send": settings.telegram.send_enabled,
-                                 "mail": False, "openai": settings.ai.enabled},
+                                 "mail": settings.mail.enabled and settings.mail.consent, "openai": settings.ai.enabled},
                 "ai": {"model": settings.ai.model, "configured_budget_usd": settings.ai.monthly_budget_usd,
                        "consent_categories": sorted(settings.ai.consent_categories), "budget": BudgetLedger(factory, service.clock).status(profile.id)}}
 

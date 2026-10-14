@@ -38,6 +38,13 @@ services:
       CRM_OWNER_ID: ${CRM_OWNER_ID:-}
       CRM_OWNER_TOKEN: ${CRM_OWNER_TOKEN:-}
       CRM_FAKE_MAIL_TOKEN: ${CRM_FAKE_MAIL_TOKEN:-}
+      CRM_MAIL_ENABLED: ${CRM_MAIL_ENABLED:-false}
+      CRM_MAIL_READ_CONSENT: ${CRM_MAIL_READ_CONSENT:-false}
+      CRM_MAIL_IMAP_HOST: ${CRM_MAIL_IMAP_HOST:-}
+      CRM_MAIL_IMAP_PORT: ${CRM_MAIL_IMAP_PORT:-993}
+      CRM_MAIL_USERNAME: ${CRM_MAIL_USERNAME:-}
+      CRM_MAIL_PASSWORD: ${CRM_MAIL_PASSWORD:-}
+      CRM_MAIL_SENT_FOLDER: ${CRM_MAIL_SENT_FOLDER:-}
       CRM_TIMEZONE: ${CRM_TIMEZONE:-}
       CRM_OPENAI_ENABLED: ${CRM_OPENAI_ENABLED:-false}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -83,6 +90,16 @@ services:
     restart: unless-stopped
     environment: *crm-api-environment
     command: ["python", "-m", "personal_crm.source_worker"]
+    depends_on:
+      crm-migrate:
+        condition: service_completed_successfully
+  crm-mail-worker:
+    profiles: [mail]
+    build: *crm-build
+    image: personal-crm:dev
+    restart: unless-stopped
+    environment: *crm-api-environment
+    command: ["python", "-m", "personal_crm.mail_worker"]
     depends_on:
       crm-migrate:
         condition: service_completed_successfully

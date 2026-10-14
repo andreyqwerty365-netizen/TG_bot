@@ -50,6 +50,43 @@ class Source(Base):
     )
 
 
+class MailAccount(Base):
+    __tablename__ = "mail_accounts"
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    account_key: Mapped[str] = mapped_column(String(64))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(16), default="idle")
+    cursor: Mapped[dict | None] = mapped_column(JSON)
+    lease_token: Mapped[str | None] = mapped_column(String(36))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(32))
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    saved_count: Mapped[int] = mapped_column(Integer, default=0)
+    reset_count: Mapped[int] = mapped_column(Integer, default=0)
+    __table_args__ = (CheckConstraint("status IN ('disabled','idle','syncing','backoff','auth_error','error')"),)
+
+
+class MailMessage(Base):
+    __tablename__ = "mail_messages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("mail_accounts.owner_id"), index=True)
+    key: Mapped[str] = mapped_column(String(64))
+    thread_id: Mapped[str] = mapped_column(String(64), index=True)
+    message_id: Mapped[str] = mapped_column(String(1000))
+    source_id: Mapped[str] = mapped_column(ForeignKey("sources.id"), index=True)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    # A remote pointer is bookkeeping, not a credential or permission to mutate mail.
+    pointer: Mapped[dict | None] = mapped_column(JSON)
+    flags: Mapped[list] = mapped_column(JSON, default=list)
+    removed: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (UniqueConstraint("owner_id", "key"),)
+
+
 class SourceVersion(Base):
     __tablename__ = "source_versions"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)

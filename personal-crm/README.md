@@ -167,3 +167,6 @@ Responses использует официальный SDK openai==3.31.0 и stri
 Корпус [fixtures/STAGE2_CORPUS.md](fixtures/STAGE2_CORPUS.md): 144 размеченных синтетических примера, 36 held_out. Независимая реальная оценка NLP **Not Run**. Сведения аудита и SDK совместимости — [docs/STAGE2_AUDIT.md](docs/STAGE2_AUDIT.md), доказательства — [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md), фактический план — [EXECPLAN_STAGE2.md](EXECPLAN_STAGE2.md).
 
 Финальный прогон Stage 2: **124 CRM-теста passed, 1 warning, 19.15s** на PostgreSQL 16.10, включая все прежние 69; **133 legacy-теста passed, 1.07s**. Демо ядра, Stage 2, 28-дневная симуляция и оба HTTP smoke в отдельном Compose прошли. Это не live Telegram/GPT, нагрузочный SLO или production-пилот.
+## Read-only почта
+
+Реализованы сменный IMAP SSL адаптер, семь суток первичной загрузки, PostgreSQL checkpoint/lease, сверка изменений и только подтверждаемые предложения. Реальный ящик не подключён; оба разрешения выключены. Веб показывает доказательства и состояние сверки. Точные команды синтетического стенда, настройки будущего доступа и ограничения: [docs/MAIL.md](docs/MAIL.md).

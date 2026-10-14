@@ -20,11 +20,16 @@ def main():
         raise SystemExit(1)
     factory = sessions(settings.database_url)
     service = CRMService(factory, ContextInterpreter(ResponsesAdapter(factory, settings.ai)))
+    last_prune = -300
     while True:
         failed = False
         try:
             service.register(settings.owner_id, settings.timezone, initialize_only=True)
             result = service.recover_sources(settings.owner_id)
+            if time.monotonic() - last_prune >= 300:
+                from .mail import MailSync
+                MailSync(service, None).prune(settings.owner_id)
+                last_prune = time.monotonic()
             if args.once or result["processed"]:
                 print(f"source worker processed={result['processed']}", flush=True)
         except (SQLAlchemyError, CRMError):

@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass, field
 from .integration_config import AIConfig, TelegramConfig
+from .mail import MailConfig
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,7 @@ class Settings:
     timezone: str | None = None
     ai: AIConfig = field(default_factory=AIConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    mail: MailConfig = field(default_factory=MailConfig)
 
     @classmethod
     def from_env(cls):
@@ -21,5 +23,5 @@ class Settings:
             os.getenv("CRM_OWNER_TOKEN", ""),
             os.getenv("CRM_FAKE_MAIL_TOKEN", ""),
             os.getenv("CRM_TIMEZONE") or None,
-            AIConfig.from_env(), TelegramConfig.from_env(),
+            AIConfig.from_env(), TelegramConfig.from_env(), MailConfig.from_env(),
         )

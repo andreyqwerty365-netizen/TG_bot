@@ -49,12 +49,12 @@ class AccessPrivacyFilter(logging.Filter):
         return True
 
 
-def create_app(settings=None, interpreter=None):
+def create_app(settings=None, interpreter=None, mail_provider=None):
     settings = settings or Settings.from_env()
     factory = sessions(settings.database_url)
     interpreter = interpreter or ContextInterpreter(ResponsesAdapter(factory, settings.ai), FixtureInterpreter.from_file("fixtures/demo.json"))
     service = CRMService(factory, interpreter)
-    app = FastAPI(title="Personal CRM — fake adapters", version="0.1.0")
+    app = FastAPI(title="Personal CRM", version="0.2.0")
     app.state.service = service
     access_logger = logging.getLogger("uvicorn.access")
     if not any(isinstance(item, AccessPrivacyFilter) for item in access_logger.filters):
@@ -85,13 +85,22 @@ def create_app(settings=None, interpreter=None):
     async def crm_error(request: Request, error: CRMError):
         return JSONResponse({"detail": error.code}, status_code=error.status)
 
+    from .mail import MailError
+
+    @app.exception_handler(MailError)
+    async def mail_error(request: Request, error: MailError):
+        return JSONResponse({"detail": error.code}, status_code=409)
+
     @app.exception_handler(SQLAlchemyError)
     async def db_error(request: Request, error):
         return JSONResponse({"detail": "database_unavailable"}, status_code=503)
 
     @app.get("/health")
     def health():
-        return {"status": "alive", "adapters": "fake"}
+        return {"status": "alive", "mail_enabled": settings.mail.enabled and settings.mail.consent}
+
+    from .mail_api import install_mail
+    install_mail(app, settings, service, actor, mail_provider)
 
     @app.get("/ready")
     def ready():

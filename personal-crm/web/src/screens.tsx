@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, displayDate, stateLabels, type Api, type Inbox, type Overview, type Page, type Preferences, type Project } from './api';
 import { useLoad } from './hooks';
 import { Dialog, Empty, Notice, TaskRows } from './components';
+import { MailEvidence, MailPanel, MailReview } from './mail';
 
 export type ScreenProps={api:Api;preferences:Preferences;projects:Project[];revision:number;open:(id:string)=>void;changed:(message:string)=>void};
 
@@ -11,6 +12,8 @@ export function Today(props:ScreenProps) {
   if(load.loading)return <p className="loading">Собираем актуальный обзор…</p>;
   if(!view)return null;
   return <div className="today-layout"><div className="today-main">
+    {view.sync_errors?.map(item=><Notice error key={item.code}>{item.message}</Notice>)}
+    {view.proposals.length?<section className="panel"><span className="eyebrow">Ваше решение</span><h2>На подтверждение: {view.proposals.length}</h2><p>Предложения ещё не изменили ваши дела.</p><a href="#inbox">Открыть входящие →</a></section>:null}
     <section className="panel focus-panel"><header className="section-heading"><div><span className="eyebrow">Сначала главное</span><h2>До трёх дел в фокусе</h2></div><span className="count">{view.main.length}</span></header>
       {view.main.length?<TaskRows tasks={view.main} zone={props.preferences.timezone} open={props.open}/>:<Empty title="Можно начать с одного дела">Добавьте задачу, которой хотите заняться сегодня.</Empty>}
       <footer className="panel-footer">{view.other_count?`Ещё ${view.other_count} дел — в полном списке.`:'Вы можете выбрать фокус в карточке любого дела.'}</footer>
@@ -60,13 +63,15 @@ export function Incoming(props:ScreenProps) {
   async function confirm(id:string,version:number,accept:boolean) {setBusy(id);setError('');try{await props.api(`/proposals/${id}/confirm`,'POST',{version,accept});props.changed(accept?'Предложение принято':'Предложение отклонено');}catch(e){setError((e as Error).message);}finally{setBusy('');}}
   if(load.error)return <Notice error>{load.error}</Notice>;if(load.loading)return <p className="loading">Загружаем входящие…</p>;const data=load.data!;
   return <><p className="section-intro">Предложения становятся делами после вашего решения. Сохранённые сообщения можно уточнить или повторно разобрать.</p>{error?<Notice error>{error}</Notice>:null}
-    <section className="panel inbox-panel">{!data.proposals.length&&!data.questions.length&&!data.errors.length?<Empty title="Входящие разобраны">Здесь появятся предложения, уточнения и сообщения с незавершённым разбором.</Empty>:null}
+    <section className="panel inbox-panel">{!data.proposals.length&&!data.questions.length&&!data.errors.length&&!data.mail_reviews?.length?<Empty title="Входящие разобраны">Здесь появятся предложения, уточнения и сообщения с незавершённым разбором.</Empty>:null}
     {data.proposals.map(p=><article className="inbox-item" key={p.id}><span className="eyebrow">Предложение</span><h3>{String(p.payload.title || 'Изменение существующего дела')}</h3>
       <p>{{close:'Отметить дело выполненным',reminder:'Изменить время напоминания',deadline:'Изменить дедлайн',title:'Изменить название',edit:'Изменить название и напоминание',plan:'Изменить день выполнения',defer:'Отложить дело',cancel:'Отменить дело'}[String(p.payload.change)] || 'Создать новое дело'}</p>
       {p.payload.reminder_at?<p>Напомнить: {displayDate(String(p.payload.reminder_at),props.preferences.timezone,true)}</p>:null}
       {p.payload.deadline?<p>Срок: {String((p.payload.deadline as {value:string}).value)}</p>:null}
       {p.payload.planned_on?<p>План: {displayDate(String(p.payload.planned_on),props.preferences.timezone)}</p>:null}
+      {p.evidence?<MailEvidence evidence={p.evidence} zone={props.preferences.timezone}/>:null}
       <div className="button-row"><button className="primary" disabled={!!busy} onClick={()=>confirm(p.id,p.version,true)}>Принять</button><button disabled={!!busy} onClick={()=>confirm(p.id,p.version,false)}>Отклонить</button></div></article>)}
+    {data.mail_reviews?.map(item=><MailReview key={item.id} {...item} api={props.api} zone={props.preferences.timezone} changed={props.changed}/>)}
     {data.questions.map(q=><QuestionReply key={q.id} question={q} api={props.api} changed={props.changed}/>)}
     {data.errors.map(item=><article className="inbox-item" key={item.id}><span className="eyebrow">Сообщение сохранено</span><h3>Разбор не завершён</h3><p className="source-text">{item.text}</p>
       <p className="muted">{item.retry_at?'Назначена ограниченная повторная обработка.':item.error_code==='ai_disabled'?'ИИ выключен. Используйте ручное создание дела или включите разрешённую обработку в конфигурации.':['ai_timeout','ai_previous_attempt'].includes(item.error_code)?'Платный запрос мог быть выполнен. Повтор остановлен до проверки расходов.':'Источник сохранён. После исправления причины можно повторить обработку.'}</p>
@@ -99,7 +104,8 @@ export function SettingsScreen(props:ScreenProps) {
     <label className="checkbox-label"><input type="checkbox" checked={paused} onChange={e=>setPaused(e.target.checked)}/>Приостановить разбор с ИИ</label>
     <label>Мой месячный лимит ИИ, USD<input type="number" min={0} step="0.000001" max={Number(prefs.ai.configured_budget_usd)} value={cap} placeholder={prefs.ai.configured_budget_usd} onChange={e=>setCap(e.target.value)}/><small>Можно уменьшить разрешённый лимит. Ноль блокирует новые платные вызовы; пустое поле использует серверный предел. Уже уменьшенный лимит текущего месяца автоматически не повышается.</small></label>
     {error?<Notice error>{error}</Notice>:null}<button className="primary">{busy?'Сохраняем…':'Сохранить настройки'}</button></fieldset></form></section>
-    <aside><section className="panel"><h2>Подключения</h2><dl className="connection-list"><dt>Telegram · приём</dt><dd>{prefs.integrations.telegram_receive?'Включён в конфигурации':'Выключен'}</dd><dt>Telegram · доставка</dt><dd>{prefs.integrations.telegram_send?'Включена в конфигурации':'Выключена'}</dd><dt>Почта</dt><dd>Не подключена</dd><dt>OpenAI</dt><dd>{prefs.integrations.openai?'Включён в конфигурации':'Выключен'}</dd></dl><p className="muted">Реальные аккаунты подключаются отдельной серверной настройкой. Ключи интеграций остаются на сервере.</p></section>
+    <aside><section className="panel"><h2>Подключения</h2><dl className="connection-list"><dt>Telegram · приём</dt><dd>{prefs.integrations.telegram_receive?'Включён в конфигурации':'Выключен'}</dd><dt>Telegram · доставка</dt><dd>{prefs.integrations.telegram_send?'Включена в конфигурации':'Выключена'}</dd><dt>OpenAI</dt><dd>{prefs.integrations.openai?'Включён в конфигурации':'Выключен'}</dd></dl><p className="muted">Реальные аккаунты подключаются отдельной серверной настройкой. Ключи интеграций остаются на сервере.</p></section>
+    <MailPanel api={props.api} revision={props.revision} changed={props.changed} zone={prefs.timezone}/>
     <section className="panel budget-panel"><span className="eyebrow">Контроль расходов</span><h2>Бюджет ИИ</h2><div className="budget-value">${(budget.spent_micro_usd/1e6).toFixed(4)}<small>учтённые расходы за месяц</small></div><p>Резерв: ${(budget.reserved_micro_usd/1e6).toFixed(4)}</p><p>Лимит: ${budget.limit_micro_usd!==undefined?(budget.limit_micro_usd/1e6).toFixed(4):prefs.ai.configured_budget_usd}</p>
       {budget.blocked?<Notice error>Новые платные обращения остановлены лимитом.</Notice>:budget.warning_80?<Notice>Использовано или зарезервировано не меньше 80% лимита.</Notice>:null}
       <p className="muted">{prefs.ai_paused?'Разбор приостановлен владельцем. ':''}{prefs.ai.model?`Модель: ${prefs.ai.model}`:'Модель ещё не выбрана.'} Верхний предел, разрешённая модель и категории передачи задаются серверной конфигурацией.</p>

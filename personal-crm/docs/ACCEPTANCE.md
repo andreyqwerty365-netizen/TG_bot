@@ -1,5 +1,26 @@
 # Приёмка Personal CRM
 
+## Почта без подключения реального ящика, 14 октября 2026
+
+**197 CRM passed, 1 прежнее предупреждение Starlette/AnyIO, 48.53s** на PostgreSQL 16.10. **133 legacy passed, 8.55s**, бот не запускался. **6 React unit passed**, TypeScript/Vite build прошёл. **10 browser E2E passed, 21.8s** на desktop/mobile с настоящими HTTP/PostgreSQL; почтовый транспорт исключительно синтетический. Локальная фабрика для проверки явно отказывает вне test-БД и синтетического профиля.
+
+| Возможность | Доказательство |
+|---|---|
+| Read-only, два независимых разрешения, INBOX/Sent без drafts | `test_real_provider_is_disabled_before_any_network`, `test_only_examine_uid_peek_and_logout_and_paginated_high_watermark`, `test_oversized_body_is_not_fetched_and_drafts_are_excluded` |
+| Семь суток, источник до разбора, checkpoint только с commit | `test_seven_days_source_first_and_confirmation`, `test_rollback_does_not_advance_cursor` |
+| Дедупликация, новая редакция, цепочка, старый разбор | `test_replay_revisions_supersede_pending_proposal`, `test_obsolete_source_cannot_recreate_a_superseded_proposal`, `test_reply_before_confirmation_replaces_the_suggestion` |
+| UIDVALIDITY, ограниченная сверка, порядок MIME response | `test_uidvalidity_reset_and_deleted_metadata_are_reported`, `test_uidvalidity_reset_rebinds_tracked_old_message_by_message_id`, `test_busy_inbox_does_not_starve_sent_folder`, `test_server_may_return_uid_after_the_body_literal` |
+| Изменение срока/отмена без автоматической записи в task | `test_reply_proposes_deadline_and_cancel_without_mutation`, `test_flag_changes_and_removal_do_not_reanalyse_or_cancel` |
+| Sent — предложение обещания, не выполнение | `test_sent_promise_and_reply_do_not_complete_the_task`; browser evidence показывает предупреждение |
+| Ошибка доступа, ограниченные повторы, конкурентный запуск и отключение | `test_backoff_bounded_auth_and_disconnect`, `test_parallel_sync_and_expired_lease`, `test_disconnect_fences_out_inflight_and_error_visible_in_overview` |
+| Evidence, ручной просмотр, версия/owner, без активных задач до подтверждения | `test_sync_status_evidence_and_explicit_confirmation`, `test_manual_review_is_still_only_a_proposal`, `test_owner_scope_and_version_conflict_on_mail_proposal`, `test_dismiss_review_does_not_create_or_delete_any_task`, `web/e2e/mail.spec.ts` |
+| HTML/вложения, семидневная очистка без потери pending | `test_html_is_text_attachments_are_flagged_and_no_remote_fetch`, `test_irrelevant_cache_expires_but_evidence_remains`, `test_retention_does_not_destroy_an_unprocessed_source`, React `mail.test.tsx` |
+| Старое письмо для просмотра остаётся видно среди новых нерелевантных | `test_old_review_is_not_hidden_by_newer_irrelevant_mail` |
+
+`python -m personal_crm.mail_demo` выполнен: `saved=3 proposals=2 tasks_before_confirmation=0 tasks_after_confirmation=1 real_external_calls=0`. Сохранённые источники подобрал новый Python-процесс `source_worker --once`. `mail_worker --once` с обоими разрешениями false выдал `outcome=disabled`. Полный pytest проверил аддитивную миграцию `f5029a13c47b`, downgrade/upgrade/check и сохранение исходных записей. Pip check прошёл. Скриншоты desktop/mobile просмотрены.
+
+Команды и точные ограничения: [MAIL.md](MAIL.md). Живой IMAP/OAuth, права конкретного провайдера, NLP-качество, Docker на этой машине, production, backup/restore и legacy import не проверялись. Срочная почтовая инициатива до сводки пока не добавлена (D09); предложения доступны в вебе и следующей сводке в прежних лимитах. Консервативные локальные правила не объявляются полноценным NLP.
+
 ## Веб и окончательная проверка продолжения, 14 октября 2026
 
 **165 CRM passed, 1 прежнее Starlette/AnyIO предупреждение, 39.04s** на настоящей PostgreSQL 16.10/Windows/Python 3.12. **133 legacy passed, 7.96s**, бот не запускался. **3 React unit passed**, TypeScript/Vite build прошёл. **8 browser E2E passed**: четыре сценария на desktop и на мобильном viewport, HTTP действительно идёт в локальный FastAPI/PostgreSQL без mock API.
@@ -98,7 +119,7 @@ O-T01–O-T06/O-T08 закрыты на локальном стенде в об�
 | T21 | Перезапуск/остановка обработчика | Сохранённые задания восстанавливаются, устаревшее не отправляется массово. | Ядро проверено — lease/fencing/SKIP LOCKED, test_outage_consolidates_old_exact_reminders_and_keeps_tasks, test_two_workers_consolidate_one_outage_report; реальные каналы не подключены |
 | T22 | Неопределённый исход отправки | Честное состояние, не бесконечные повторы. | Ядро проверено — bounded retries/unknown, test_crash_during_digest_reservation_does_not_resend_one_time_question, test_closing_after_crashed_intent_keeps_unknown_outcome_instead_of_pending_forever |
 | T23 | Пояс с сезонным переводом времени | Даты и сводка по политике профиля, без дублей; неизвестный пояс не заменяется серверным. | Stage 2: relative/IANA и DST gaps/folds проверены — test_dst_gap_fold_and_unknown_timezone_ask; миграция пользовательского пояса остаётся отдельно |
-| T24 | Отозван почтовый доступ | Видна ошибка синхронизации, не ложное «новых дел нет». | Не проверено |
+| T24 | Отозван почтовый доступ | Видна ошибка синхронизации, не ложное «новых дел нет». | Проверено на синтетическом IMAP/HTTP/PostgreSQL — test_backoff_bounded_auth_and_disconnect, test_disconnect_fences_out_inflight_and_error_visible_in_overview; живой ящик не подключён |
 | T25 | Достигнут бюджет ИИ | Новые платные обращения блокируются, базовые задачи/напоминания работают. | Stage 2: PostgreSQL budget gate/80/100/concurrency с настоящим SDK и mocked HTTP — test_concurrent_requests_cannot_overspend, test_80_100_thresholds_and_utc_month; платных вызовов нет |
 | T26 | Миграция старого бота | Сверены записи/сроки/повторы, тренировки целы, нет двух отправителей. Производственную миграцию пока не выполнять. | Не проверено |
 | T27 | Восстановление копии | Данные/доступ/расписание проверены, нет массовой повторной отправки, учтены зарегистрированные удаления. | Не проверено |
@@ -154,7 +175,7 @@ Fake-модель проверяет маршрутизацию и полити�
 | R01 | POST /sources, T01–T02; controlled fixture. Ограниченный русский Update-ввод в Stage 2; общее NLP Not Run. |
 | R02 | channel=forward и отдельные external_id; T07. Изолированный Update adapter есть, live receiver выключен и Not Run. |
 | R03 | obvious create либо предложение/уточнение; T03, T07. Смысловое качество не проверялось. |
-| R04 | mail всегда предложение; T10 и demo. |
+| R04 | MailSync/source worker создают только proposals/review; T10, mail demo и browser подтверждают отсутствие задачи до «Принять». |
 | R05 | Неизвестная fixture вызывает уточнение без блокировки другого ввода; T03. |
 | R06 | Любой propose_update ждёт подтверждения; T13–T14. |
 | R07 | Explicit HTTP commands исполняются сразу после проверки версии; T12, T17. Ограниченные разговорные команды/версии проверены в Stage 2. |
@@ -181,8 +202,8 @@ Fake-модель проверяет маршрутизацию и полити�
 | D04 | Exact вне лимита, repeat внутри; test_exact_exempt_repeat_consumes_limit. |
 | D05 | Local day и межполуночный gap; test_policy_gap_crosses_midnight_and_dst. |
 | D06 | Счётчик только поздних переносов существующего planned_on; reminder и молчание не учитываются — test_plan_moves_count_without_changing_deadline. |
-| D07 | Fake-mail endpoint с отдельной аутентификацией; реальный ящик/папки не подключены. |
-| D08 | Почтовые 7 дней и checkpoints не реализованы. |
+| D07 | IMAP SSL adapter, явные INBOX/Sent, readonly EXAMINE/BODY.PEEK, исключение Draft/Deleted/Junk; protocol tests. Реальный ящик не подключён. |
+| D08 | Семь суток, PostgreSQL checkpoint/lease, revision/thread dedupe и UIDVALIDITY recovery; test_mail_sync.py/test_mail_imap.py. |
 | D09 | Digest показывает число pending proposals; приоритет срочного письма не реализован. |
 | D10 | Внешний календарь не подключён; внутренние события следующий этап. |
 | D11 | Default fake; отдельный test-bot TelegramTransport проверен mocked HTTP, live/web push Not Run. |
@@ -190,7 +211,7 @@ Fake-модель проверяет маршрутизацию и полити�
 | D13 | kind=note/task/waiting и отсутствие придуманного дедлайна; T02/T09. Общая классификация fake-моделью не доказана. |
 | D14 | Серверная привязка владельца, deny by default; T28. |
 | D15 | Настоящие AI/почта/Telegram отсутствуют; test_no_real_ai_calls. |
-| D16 | Очистка почтового кэша/retention не реализована; тестируются только синтетические источники. |
+| D16 | Очистка обработанного кэша через 7 суток, ограниченный evidence остаётся с pending/accepted; необработанные источники сохраняются. test_irrelevant_cache_expires_but_evidence_remains, test_retention_does_not_destroy_an_unprocessed_source. |
 | D17 | Зашифрованные внешние backup/restore не реализованы. Рестарт PostgreSQL не равен восстановлению копии. |
 
 ## Фактическое окружение и команды первого ядра

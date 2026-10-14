@@ -114,7 +114,32 @@ class CRMService:
         context = None
         trusted_rule = False
         try:
-            if hasattr(self.interpreter, "interpret_context"):
+            with self.factory() as s:
+                mail_version = s.get(SourceVersion, version_id)
+                synced_mail = bool((mail_version.channel_metadata or {}).get("mail_sync"))
+            if synced_mail:
+                from .mail_rules import interpret_mail
+                with self.factory.begin() as s:
+                    profile = self.owner(s, owner_id)
+                    version = s.get(SourceVersion, version_id)
+                    if version.parse_token != token:
+                        return {"status": "processing", "source_version_id": version_id}
+                    source = s.get(Source, version.source_id)
+                    newer = s.scalar(select(SourceVersion.id).where(SourceVersion.source_id == source.id,
+                                     SourceVersion.revision > version.revision))
+                    if newer:
+                        result = {"status": "superseded", "source_version_id": version_id}
+                    else:
+                        output, review = interpret_mail(s, owner_id, source, version, profile.timezone)
+                        if output is None:
+                            result = {"status": "review" if review else "ignored", "source_version_id": version_id}
+                        else:
+                            # Local interpretation, superseding and proposal commit under one owner lock.
+                            result = self._apply_interpretation(s, owner_id, source, version, output)
+                    version.status, version.result, version.error_code = "processed", result, None
+                    version.parse_token = version.parse_until = None
+                    return result
+            elif hasattr(self.interpreter, "interpret_context"):
                 from .context import build_context
                 from .language import deterministic
                 with self.factory.begin() as s:

@@ -218,6 +218,7 @@ def overview(s, profile, now, ignore_attempt=None):
                 missed.extend(missed_items(s, guide))
     return {
         "timezone": profile.timezone, "needs_timezone": zone is None,
+        "sync_errors": mail_sync_errors(s, profile.id),
         "main": [snapshot(by_id[identity]) for identity in main],
         "deadlines": [{**snapshot(t), "overdue": overdue(t.deadline, now)} for t in dated],
         "forgotten": [snapshot(t) for t in forgotten],
@@ -228,7 +229,7 @@ def overview(s, profile, now, ignore_attempt=None):
 
 
 def render_overview(view):
-    if not any(view[key] for key in ("main", "deadlines", "forgotten", "waiting", "proposals", "guidance")):
+    if not any(view.get(key) for key in ("main", "deadlines", "forgotten", "waiting", "proposals", "guidance", "sync_errors")):
         return None
     sections = []
     if view["main"]:
@@ -245,9 +246,19 @@ def render_overview(view):
         sections.append(f"Ожиданий: {len(view['waiting'])}")
     if view["proposals"]:
         sections.append(f"Предложений для решения: {len(view['proposals'])}")
+    sections.extend(error["message"] for error in view.get("sync_errors", []))
     sections.extend(g["message"] for g in view["guidance"])
     sections.append(f"Других дел: {view['other_count']}. Полный список доступен в обзоре.")
     return "\n".join(sections)
+
+
+def mail_sync_errors(s, owner):
+    from .models import MailAccount
+    account = s.get(MailAccount, owner)
+    if not account or not account.enabled or not account.error_code:
+        return []
+    message = "Почта: доступ отклонён, синхронизация остановлена. Проверьте подключение в настройках." if account.status == "auth_error" else "Почта: синхронизация задержана. Сохранённые предложения доступны; состояние в настройках."
+    return [{"code": account.error_code, "message": message}]
 
 
 def record_presentation(s, view, now, outcome):
