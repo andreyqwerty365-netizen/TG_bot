@@ -54,3 +54,10 @@ Structured Outputs: https://developers.openai.com/api/docs/guides/structured-out
 Key safety: https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety
 Data controls: https://developers.openai.com/api/docs/guides/your-data
 Separate billing: https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform
+
+
+## Реализация Stage 2, 14 октября 2026
+
+Реализованы ResponsesAdapter, строгий ProviderOutput без command/authority, bounded server context, source-first pipeline и PostgreSQL BudgetLedger с предварительной резервацией, сверкой usage, cache, 80/100% и консервативным неизвестным исходом. Официальный SDK openai==3.31.0/httpx2==2.13.1 зафиксирован; прочитаны README/helpers openai/openai-python, фактический strict Responses.parse payload проверен mocked HTTP. Конфигурация и limits — README/.env.example, подробный аудит — STAGE2_AUDIT.md. Все внешние флаги по умолчанию выключены.
+
+124 CRM tests прошли на PostgreSQL, включая gates/consent/pricing/concurrency/refusal/incomplete/timeout/JSON/date/cache и независимую доставку очереди. Это подтверждение локальной политики/совместимости SDK, не качество GPT и не live интеграция. Подготовлены 144 размеченных synthetic примера, 36 held_out. Модель/реальный тариф/бюджет владельца не выбраны, paid API и независимые NLP-метрики Not Run. Исторические формулировки приёмки выше сохраняются как требования.

@@ -15,7 +15,8 @@ An owner can submit a synthetic Telegram Update in Russian, get a committed task
 - [x] (2026-10-14) M3 offline: authenticate synthetic/disabled real webhook Updates, deduplicate messages/revisions and queue truthful replies; implement disabled real test-bot transport.
 - [x] (2026-10-14) M2: implement official Responses Structured Outputs, strict configuration gates and PostgreSQL budget reservation/settlement/cache; add 120+ labelled synthetic examples.
 - [x] (2026-10-14) M4 validation: 124 CRM tests, 133 bot regression, official SDK mocks, core/Stage 2 demos, 28-day simulation and both local HTTP/Compose smokes passed. README, audit and acceptance matrix updated.
-- [ ] M4 publication: complete final image/restart smoke, commit isolated changes and push stage2 commits; verify remote and clean working tree.
+- [x] (2026-10-14) M4 final stack: rebuilt final image, upgraded retained synthetic Compose database, restarted crm-db, reran both HTTP smokes, verified pre-restart completed Telegram task persisted.
+- [ ] M4 publication: push isolated implementation/validation commits, verify remote and clean working tree.
 
 ## Surprises & Discoveries
 
@@ -31,7 +32,7 @@ Monthly cost accounting uses integer micro-USD and PostgreSQL row locks. A trust
 
 ## Outcomes & Retrospective
 
-M0–M3 implemented. Baseline rerun was 69 passed in 10.75s; final full suite is 124 passed, one Starlette/AnyIO deprecation warning in 20.19s on real PostgreSQL. Official SDK mocked HTTP checks passed; 144 labelled synthetic cases include 36 held out. Stage 2 demo passed with seven fake replies, one exact delivery and persisted clarification after a new service/engine. Recovery/unrelated-error dialogue tests passed. Legacy regression: 133 passed in 1.07s. Core demo, 28-day simulation and both HTTP/Compose smokes passed; final image/restart smoke and publication are being completed. Real external NLP evaluation and real Telegram delivery are explicitly Not Run; they require separate user authorization, accounts and model/price choices.
+M0–M3 implemented. Baseline rerun was 69 passed in 10.75s; final full suite is 124 passed, one Starlette/AnyIO deprecation warning in 19.15s on real PostgreSQL. Official SDK mocked HTTP checks passed; 144 labelled synthetic cases include 36 held out. Stage 2 demo passed with seven fake replies, one exact delivery and persisted clarification after a new service/engine. Recovery/unrelated-error dialogue tests passed. Legacy regression: 133 passed in 1.07s. Core demo, 28-day simulation and both HTTP/Compose smokes passed; final image/restart smoke and retained task check passed; publication is being completed. Real external NLP evaluation and real Telegram delivery are explicitly Not Run; they require separate user authorization, accounts and model/price choices.
 
 ## Context and Orientation
 
@@ -76,3 +77,7 @@ Revision 2026-10-14: established actual branch/schema boundaries and fake-only i
 Revision 2026-10-14: completed M0–M3 implementation, recorded actual 118-test intermediate run and Stage 2 demo; final recovery/regression/Compose evidence remains in M4. Added independent corpus split and official SDK compatibility findings.
 
 Revision 2026-10-14: recorded final 124/133 passing results, independent calendar validation, persistence recovery and both HTTP smokes. An unrelated failed parse advances the source cursor, preventing an accidental old unbound yes. Final publication remains pending.
+
+Revision 2026-10-14: implementation committed as ac7af58. Final source rerun passed 124 tests in 19.15s; schema/source scope and credential-pattern scans passed for 32 files. SDK logging suppression now occurs after its import to override OPENAI_LOG before a request. Final Compose restart and publication remain pending.
+
+Revision 2026-10-14: final image d6810da built with checksum-verified locked wheels. Isolated PostgreSQL restarted; core and Stage 2 HTTP smokes both passed afterward, and an earlier completed synthetic Telegram task remains. Publication is the only pending step.
