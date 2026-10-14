@@ -4,6 +4,7 @@ import { useLoad } from './hooks';
 import { Dialog, Empty, Notice, TaskRows } from './components';
 import { MailEvidence, MailPanel, MailReview } from './mail';
 import { PlanningBoard } from './planning';
+import { DataPanel } from './data-tools';
 
 export type ScreenProps={api:Api;preferences:Preferences;projects:Project[];revision:number;open:(id:string)=>void;changed:(message:string)=>void};
 
@@ -111,6 +112,7 @@ export function SettingsScreen(props:ScreenProps) {
     {error?<Notice error>{error}</Notice>:null}<button className="primary">{busy?'Сохраняем…':'Сохранить настройки'}</button></fieldset></form></section>
     <aside><section className="panel"><h2>Подключения</h2><dl className="connection-list"><dt>Telegram · приём</dt><dd>{prefs.integrations.telegram_receive?'Включён в конфигурации':'Выключен'}</dd><dt>Telegram · доставка</dt><dd>{prefs.integrations.telegram_send?'Включена в конфигурации':'Выключена'}</dd><dt>OpenAI</dt><dd>{prefs.integrations.openai?'Включён в конфигурации':'Выключен'}</dd></dl><p className="muted">Реальные аккаунты подключаются отдельной серверной настройкой. Ключи интеграций остаются на сервере.</p></section>
     <MailPanel api={props.api} revision={props.revision} changed={props.changed} zone={prefs.timezone}/>
+    <DataPanel api={props.api}/>
     <section className="panel budget-panel"><span className="eyebrow">Контроль расходов</span><h2>Бюджет ИИ</h2><div className="budget-value">${(budget.spent_micro_usd/1e6).toFixed(4)}<small>учтённые расходы за месяц</small></div><p>Резерв: ${(budget.reserved_micro_usd/1e6).toFixed(4)}</p><p>Лимит: ${budget.limit_micro_usd!==undefined?(budget.limit_micro_usd/1e6).toFixed(4):prefs.ai.configured_budget_usd}</p>
       {budget.blocked?<Notice error>Новые платные обращения остановлены лимитом.</Notice>:budget.warning_80?<Notice>Использовано или зарезервировано не меньше 80% лимита.</Notice>:null}
       <p className="muted">{prefs.ai_paused?'Разбор приостановлен владельцем. ':''}{prefs.ai.model?`Модель: ${prefs.ai.model}`:'Модель ещё не выбрана.'} Верхний предел, разрешённая модель и категории передачи задаются серверной конфигурацией.</p>

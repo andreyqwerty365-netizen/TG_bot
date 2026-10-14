@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type FormEvent } from 'rea
 import { displayDate, kindLabels, localInput, stateLabels, type Api, type Detail, type Preferences, type Project, type Task } from './api';
 import { useLoad } from './hooks';
 import { TaskPlanning } from './planning';
+import { LegacyNotice } from './data-tools';
 
 export function Notice({error,children}:{error?:boolean;children:ReactNode}) {return <div className={error?'notice error':'notice'} role={error?'alert':undefined}>{children}</div>;}
 export function Empty({title,children}:{title:string;children?:ReactNode}) {return <div className="empty"><span className="empty-mark" aria-hidden="true">○</span><h3>{title}</h3>{children?<p>{children}</p>:null}</div>;}
@@ -81,6 +82,7 @@ export function TaskDialog({id,api,revision,preferences,projects,close,changed,o
       <button className="danger-button" disabled={busy} onClick={()=>{if(window.confirm(task.recurrence_id?'Отменить только этот экземпляр? Повторение сохранится.':'Отменить это дело?')) void command('cancel');}}>{task.recurrence_id?'Отменить экземпляр':'Отменить дело'}</button></div>:null}
     {error?<Notice error>{error}</Notice>:null}
     {task.original_deadline?<p className="muted">Первоначальный срок: {displayDate(task.original_deadline.value,task.original_deadline.timezone,task.original_deadline.precision==='instant')}</p>:null}
+    {task.legacy_import?<LegacyNotice legacy={task.legacy_import} zone={preferences.timezone}/>:null}
     <TaskPlanning key={`${task.id}:${task.version}`} task={task} api={api} zone={preferences.timezone} preferredTime={preferences.preferred_reminder_time || null} changed={changed} open={open}/>
     <details className="detail-section"><summary>Источник</summary><p className="source-text">{task.source.text}</p><small>{task.source.channel==='mail'?'Почта':task.source.channel==='forward'?'Пересылка':'Ввод владельца'} · {displayDate(task.source.received_at,preferences.timezone,true)}</small></details>
     <details className="detail-section"><summary>История изменений · {task.history.length}</summary><ol className="history">{task.history.map(h=><li key={h.id}><time>{displayDate(h.created_at,preferences.timezone,true)}</time><span>Версия {h.task_version} · {stateLabels[h.after.state]}</span><strong>{h.after.title}</strong></li>)}</ol></details>

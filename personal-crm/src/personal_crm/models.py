@@ -26,6 +26,7 @@ class Profile(Base):
     timezone: Mapped[str | None] = mapped_column(String(64))
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     ai_paused: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    recovery_hold: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     ai_budget_cap_micro_usd: Mapped[int | None] = mapped_column(BigInteger)
     preferred_reminder_time: Mapped[str | None] = mapped_column(String(5))
     digest_hour: Mapped[int] = mapped_column(default=12)

@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends, Query
 from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field, field_validator
 from sqlalchemy import Date, DateTime, case, cast, func, select
@@ -121,6 +122,14 @@ def task_view(task, reminder=None):
 def install_workspace(app, service, settings, actor):
     factory = service.factory
 
+    @app.get("/workspace/export")
+    def export_data(owner=Depends(actor)):
+        from .recovery import export_owner
+        return JSONResponse(export_owner(factory, owner), headers={
+            "Content-Disposition": 'attachment; filename="personal-crm-export.json"',
+            "Cache-Control": "no-store",
+        })
+
     @app.get("/workspace/tasks")
     def task_search(owner=Depends(actor), q: str = Query(default="", max_length=200),
                     state: Literal["active", "in_progress", "deferred", "done", "cancelled"] | None = None,
@@ -195,9 +204,11 @@ def install_workspace(app, service, settings, actor):
             from .models import Recurrence
             from .recurrence import rule_view
             rule = s.scalar(select(Recurrence).where(Recurrence.id == task.recurrence_id, Recurrence.owner_id == owner)) if task.recurrence_id else None
+            legacy = (version.channel_metadata or {}).get("legacy")
             return {**task_view(task, reminder), "source": {"id": version.id, "text": version.text, "channel": source.channel,
                     "received_at": version.received_at, "original_at": version.original_at}, "history": history,
                     "recurrence": rule_view(rule) if rule else None,
+                    "legacy_import": {"reminder_at": legacy.get("remind_at"), "repeat_rule": legacy.get("repeat_rule")} if legacy and legacy.get("table") == "reminders" else None,
                     "children": [snapshot(child) for child in s.scalars(select(Task).where(Task.parent_task_id == identity,
                         Task.owner_id == owner).order_by(Task.step_batch.desc(), Task.step_index).limit(100))]}
 

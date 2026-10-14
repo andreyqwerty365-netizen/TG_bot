@@ -79,6 +79,9 @@ def create_app(settings=None, interpreter=None, mail_provider=None):
         if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
             raise HTTPException(401, "unauthorized")
         service.register(settings.owner_id, settings.timezone, initialize_only=True)
+        with factory() as s:
+            if s.get(Profile, settings.owner_id).recovery_hold:
+                raise HTTPException(503, "recovery_hold")
         return settings.owner_id
 
     @app.exception_handler(CRMError)

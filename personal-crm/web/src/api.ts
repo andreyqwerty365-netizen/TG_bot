@@ -23,11 +23,13 @@ export type Preferences = { version:number; timezone:string|null; digest_hour:nu
 export type Overview = {main:Task[];deadlines:Task[];forgotten:Task[];waiting:Task[];proposals:Proposal[];
   guidance:{id:string;message:string}[];other_count:number;sync_errors?:{code:string;message:string}[];planning_suggestions?:PlanningSuggestion[]};
 export type Detail = Task & {source:{id:string;text:string;channel:string;received_at:string};
-  history:{id:string;reason:string;task_version:number;created_at:string;after:Task}[];recurrence?:Recurrence|null;children?:Task[]};
+  history:{id:string;reason:string;task_version:number;created_at:string;after:Task}[];recurrence?:Recurrence|null;children?:Task[];
+  legacy_import?:{reminder_at:string|null;repeat_rule:string|null}|null};
 export type Page = {items:Task[];total:number;offset:number;limit:number};
 
 const messages:Record<string,string> = {
   unauthorized:'Ключ доступа не подошёл. Введите ключ владельца.', owner_not_configured:'Настройте владельца и ключ доступа на сервере.',
+  recovery_hold:'База восстановлена и ожидает проверки. Отправки заблокированы; завершите проверку восстановления на сервере.',
   database_unavailable:'База данных временно недоступна. Повторите попытку позже.', version_conflict:'Дело уже изменилось. Обновите карточку и проверьте правку.',
   proposal_conflict:'Предложение уже обработано или изменилось. Обновите входящие.', task_inactive:'Это дело уже завершено или отменено.',
   ambiguous_or_invalid_time:'Проверьте дату и время. При переводе часов выберите однозначное время.',

@@ -152,6 +152,8 @@ def prepare(factory, now, owner_id=None, digest=False):
     for identity in owners:
         with factory.begin() as s:
             profile = s.scalar(select(Profile).where(Profile.id == identity).with_for_update())
+            if profile.recovery_hold:
+                continue
             recover_pending_attempts(s, profile, now)
             reconcile_uncertain_guidance(s, profile)
             if profile.timezone:

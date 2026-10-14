@@ -1,5 +1,23 @@
 # Приёмка Personal CRM
 
+## Резервирование и пробный перенос, 14 октября 2026
+
+**241 CRM passed, 132.55s**, одно прежнее Starlette/AnyIO предупреждение. PostgreSQL 16.10, реальные pg_dump/pg_restore/psql; **22 новых сценария** в `test_recovery.py` / `test_legacy_import.py`. **133 legacy passed, 9.74s**, старый бот не запускался. **11 React unit passed**, TypeScript/Vite build; **16 E2E passed, 53.1s** (desktop/mobile, реальный HTTP/PG). После корректировки позиции screenshot повтор экспорта: **2 passed, 3.8s**; скриншоты просмотрены. `pip check`, core/Stage2/mail demos и 28-day simulation прошли, real_external_calls=0.
+
+| Поведение | Фактическое доказательство |
+|---|---|
+| AES-GCM, неверный ключ/усечение/другой тип, новый nonce | `test_encryption_authenticates_every_byte_and_randomizes_nonce`, `test_wrong_key_restore_leaves_empty_target` |
+| Согласованный snapshot при concurrent write | `test_dump_counts_and_records_share_snapshot_during_concurrent_writes` — новая правка/вторая задача видны в исходной БД, восстановлена первая версия с одним делом |
+| Атомарный restore/count verification и отказ непустому target | `test_count_mismatch_rolls_back_schema_and_quarantine`, `test_restore_rejects_nonempty_target_without_changing_it`, `test_restore_requires_isolated_name_and_authenticated_current_ledger` |
+| Даты/evidence сохранены, отправки/paid requests не повторяются | `test_postgresql_restore_preserves_evidence_and_holds_all_delivery`, `test_restore_never_replays_paid_requests_inflight_sources_or_mail`, `test_hold_blocks_commands_mail_and_even_fresh_jobs` |
+| Зарегистрированное удаление, lock, безопасная identity | `test_registered_erasure_is_reapplied_to_older_backup`, `test_erasure_ledger_lock_prevents_lost_updates`, `test_erasure_binds_owner_identity_without_sql_or_line_interpretation` |
+| Daily opt-in/restart due, 30 дней, изоляция разных БД | `test_daily_backup_cycle_is_opt_in_and_checks_archive_authentication`, `test_retention_keeps_current_copy_and_ignores_foreign_files`, `test_other_database_archive_cannot_suppress_daily_backup` |
+| Readonly legacy copy, timestamps/archive/repeat evidence, отсутствие отправителей | `test_preview_is_readonly_and_reports_unconverted_repeats`, `test_import_preserves_fields_and_never_starts_old_senders`, `test_imported_schedule_evidence_is_available_in_web_card` |
+| Повтор/changed row/stale preview/bad date/WAL/явный timezone | Остальные три сценария `test_legacy_import.py`, PostgreSQL rollback и неизменность SQLite bytes |
+| Owner-only export/hold через HTTP и browser download | `test_hold_is_visible_in_authenticated_api_and_export_is_owner_scoped`, `data-tools.test.tsx`, `data-tools.spec.ts` desktop/mobile |
+
+Runbook/ограничения: [RECOVERY.md](RECOVERY.md). D17 **частично** реализован: encrypted snapshot/daily worker/retention/rehearsal готовы, настоящий внешний носитель/supervisor/контроль ошибок и регулярный restore не настроены. T26 выполнен на synthetic standalone SQLite, реальная разрешённая копия и production receiver switch **Not Run**. T27 выполнен на isolated PostgreSQL; потребление актуального external ledger обязательно. Удаление целого профиля поддержано, выборочная очистка задачи/письма и защита внешнего журнала от rollback **Not Run**. Docker/production/live GPT/Telegram/IMAP остаются **Not Run**. Все копии/экспорты/PID/logs стенда исключены из Git; публичные fixtures только синтетические.
+
 ## Регулярность и подтверждаемый план, 14 октября 2026
 
 **219 CRM passed, 1 прежнее Starlette/AnyIO предупреждение, 65.06s** на настоящей PostgreSQL 16.10. **133 legacy passed, 9.22s**, бот не запускался. **9 React unit passed**, TypeScript/Vite build прошёл. **14 browser E2E passed, 20.5s**: семь сценариев на desktop и mobile, с настоящим HTTP/PostgreSQL. Реальные почта/Telegram/GPT остаются выключенными.
@@ -143,8 +161,8 @@ O-T01–O-T06/O-T08 закрыты на локальном стенде в об�
 | T23 | Пояс с сезонным переводом времени | Даты и сводка по политике профиля, без дублей; неизвестный пояс не заменяется серверным. | Stage 2: relative/IANA и DST gaps/folds проверены — test_dst_gap_fold_and_unknown_timezone_ask; миграция пользовательского пояса остаётся отдельно |
 | T24 | Отозван почтовый доступ | Видна ошибка синхронизации, не ложное «новых дел нет». | Проверено на синтетическом IMAP/HTTP/PostgreSQL — test_backoff_bounded_auth_and_disconnect, test_disconnect_fences_out_inflight_and_error_visible_in_overview; живой ящик не подключён |
 | T25 | Достигнут бюджет ИИ | Новые платные обращения блокируются, базовые задачи/напоминания работают. | Stage 2: PostgreSQL budget gate/80/100/concurrency с настоящим SDK и mocked HTTP — test_concurrent_requests_cannot_overspend, test_80_100_thresholds_and_utc_month; платных вызовов нет |
-| T26 | Миграция старого бота | Сверены записи/сроки/повторы, тренировки целы, нет двух отправителей. Производственную миграцию пока не выполнять. | Не проверено |
-| T27 | Восстановление копии | Данные/доступ/расписание проверены, нет массовой повторной отправки, учтены зарегистрированные удаления. | Не проверено |
+| T26 | Миграция старого бота | Сверены записи/сроки/повторы, тренировки целы, нет двух отправителей. Производственную миграцию пока не выполнять. | Synthetic standalone SQLite → PostgreSQL проверено: notes/done/archive/UTC/repeat evidence/idempotence/rollback; routine bytes целы, sender/jobs отсутствуют. Реальная копия/production Not Run |
+| T27 | Восстановление копии | Данные/доступ/расписание проверены, нет массовой повторной отправки, учтены зарегистрированные удаления. | Проверено настоящим pg_dump/restore/psql в isolated БД: count verification/rollback, owner hold, schedules выключены для ручной проверки, unknown/paid не replay, external ledger повторно удаляет профиль. Off-server/регулярный rehearsal Not Run |
 | T28 | Посторонний пользователь | Не читает и не меняет данные через бот или веб; пустая конфигурация владельца не открывает доступ. | Ядро проверено — test_owner_api_and_connector_authentication, test_missing_owner_fails_closed, test_object_owner_and_versions_checked, test_confirmation_other_owner_refused |
 
 ## OpenAI API
@@ -234,7 +252,7 @@ Fake-модель проверяет маршрутизацию и полити�
 | D14 | Серверная привязка владельца, deny by default; T28. |
 | D15 | Реальные AI/почта/Telegram выключены. IMAP требует enabled+read consent до создания клиента; test_real_provider_is_disabled_before_any_network. Live/paid calls не выполнялись. |
 | D16 | Очистка обработанного кэша через 7 суток, ограниченный evidence остаётся с pending/accepted; необработанные источники сохраняются. test_irrelevant_cache_expires_but_evidence_remains, test_retention_does_not_destroy_an_unprocessed_source. |
-| D17 | Зашифрованные внешние backup/restore не реализованы. Рестарт PostgreSQL не равен восстановлению копии. |
+| D17 | Частично: AES-256-GCM snapshot, opt-in daily cycle, retention 30 дней, isolated restore/counts/hold/erasure ledger проверены. Фактический внешний mount/supervisor/monitoring и регулярный rehearsal не настроены; RPO 24h в production не заявляется. |
 
 ## Фактическое окружение и команды первого ядра
 

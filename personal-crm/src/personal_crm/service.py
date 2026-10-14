@@ -66,6 +66,8 @@ class CRMService:
         profile = s.scalar(select(Profile).where(Profile.id == owner_id).with_for_update())
         if not profile:
             raise CRMError("owner_not_configured", 503)
+        if profile.recovery_hold:
+            raise CRMError("recovery_hold", 503)
         return profile
 
     @staticmethod
@@ -102,6 +104,7 @@ class CRMService:
     def process(self, owner_id, version_id):
         now, token = self.clock(), uid()
         with self.factory.begin() as s:
+            self.owner(s, owner_id)
             source_version = s.scalar(select(SourceVersion).join(Source).where(
                 SourceVersion.id == version_id, Source.owner_id == owner_id
             ).with_for_update(of=SourceVersion))
