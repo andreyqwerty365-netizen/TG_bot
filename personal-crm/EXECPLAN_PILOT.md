@@ -11,7 +11,7 @@
 ## Progress
 
 - [x] (2026-10-15) Владелец подтвердил отсутствие VPS/домена. Реализованы offline generator/check новой приватной конфигурации: случайные отдельные DB credentials/owner/backup key, скрытый ввод пароля, отказ от перезаписи и хранения в checkout. Новые проверки локально 29 passed/1 Linux-only skip; полный backend прогон до последних пяти дополнительных cases — 320 passed/1 skip. Синтетический container rehearsal теперь получает настройки через тот же renderer. Реальные внешние проверки остаются отдельными.
-- [ ] (2026-10-15) Проверить новый renderer/check в actual Linux CI и Docker HTTPS/restart/restore, сохранить результаты и commit. VPS/домен пока не приобретены; это не мешает разработке настройки.
+- [x] (2026-10-15) Новый renderer/check прошёл actual Linux CI 38707830985 на ad0c56e: 326 CRM/133 legacy/14 React/18 E2E/build/load; production Docker с generated config/HTTPS/session/queue restart/encrypted restore — success. Linux permissions tests не пропущены. Результаты и private setup инструкция сохранены; VPS/домен пока не приобретены.
 
 - [x] (2026-10-15) Подготовлены переносимый browser runner и создание трёх новых isolated CI databases; локально 294 CRM tests/133 legacy/14 React/build и 18 E2E через новый runner прошли. Подготовлены synthetic Docker/HTTPS/restart/restore rehearsal и Linux workflow. Владелец явно разрешил единственное исключение из scope: `.github/workflows/personal-crm.yml`. Действующие боты/Amvera не меняются.
 - [x] (2026-10-15) Workflow опубликован в 311fc77. Первый actual Ubuntu run 38702871815: validation job прошла — 294 CRM/133 legacy/14 React/18 E2E/build/10k load. Контейнерная job собрала images, но выявила конфликт статического Caddy IP с динамическим API allocation; весь run не считается успешным.
@@ -154,7 +154,7 @@ VPS — отдельная виртуальная машина с общими �
 
 ## Outcomes & Retrospective
 
-Дополнение 2026-10-15: следующий ручной барьер уменьшен до подготовки восьми согласованных файлов через один приватный terminal command и offline check. Инструкция PILOT_DEPLOYMENT.md содержит exact docker run без сети, с минимальным bind и без установки Python на хост. Сборка и реальный Linux smoke нового комплекта ещё ожидаются; работающие VPS/Telegram/S3 не заявлены.
+Дополнение 2026-10-15: следующий ручной барьер уменьшен до подготовки восьми согласованных файлов через один приватный terminal command и offline check. Инструкция PILOT_DEPLOYMENT.md содержит exact docker run без сети, с минимальным bind и без установки Python на хост. Новый комплект прошёл сборку и реальный Linux smoke 38707830985: 326 CRM/133 legacy/14 React/18 E2E/build/load, actual HTTPS/restart/encrypted restore. Работающие VPS/Telegram/S3 не заявлены; следующий обязательный шаг требует VPS/домена и приватной операторской настройки.
 
 Результат продолжения 2026-10-15: подготовка к первому VPS испытанию проверена actual Linux CI без домашнего компьютера. Source commit 91ba0df и run https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507: обе jobs success. В финальных images actual Python 3.12.15, PostgreSQL server/client 16.15, Caddy 2.11.7; HTTPS local CA, CSRF/secure sessions, restart persistence, encrypted dump/isolated restore подтверждены. CI images существуют на временном runner и не опубликованы в registry; на VPS их нужно собрать из проверенного source commit и записать собственные IDs. Оставшиеся действия требуют VPS/DNS/нового Telegram/S3, после чего идут реальные проверки и пользовательский пилот. Нет оснований объявлять этапы 3–6 завершёнными.
 

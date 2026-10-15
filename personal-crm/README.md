@@ -2,7 +2,7 @@
 
 Серверная настройка: `personal_crm.deployment_setup generate/check` создаёт новый приватный комплект файлов и проверяет согласованность без подключения интеграций. Запуск из готового runtime image без установки Python на хост описан в [PILOT_DEPLOYMENT.md](docs/PILOT_DEPLOYMENT.md). VPS/домен пока не предоставлены; CLI не выполняет развёртывание.
 
-Проверено на Ubuntu: [Linux CI 38704316507](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507), source commit 91ba0df — 296 CRM/133 legacy/14 React/18 E2E, load и production Docker/HTTPS/restart/encrypted restore. Production Python 3.12.15/PostgreSQL 16.15. [Проверки без компьютера](docs/CLOUD_CHECKS.md). Реальный VPS/внешние аккаунты ещё не подключены.
+Проверено на Ubuntu: [Linux CI 38707830985](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38707830985), source commit ad0c56e — 326 CRM/133 legacy/14 React/18 E2E, load и generated config/production Docker/HTTPS/restart/encrypted restore. Production Python 3.12.15/PostgreSQL 16.15. [Проверки без компьютера](docs/CLOUD_CHECKS.md). Реальный VPS/внешние аккаунты ещё не подключены.
 
 Подготовка первого личного запуска: сохранённый вход по паролю, быстрый ввод с уточнением, operational статус и opt-in encrypted S3 publication. [Размещение на VPS](docs/PILOT_DEPLOYMENT.md), [первые пять действий](docs/USER_GUIDE.md). Текущие проверки и ограничения — [ACCEPTANCE.md](docs/ACCEPTANCE.md); следующие шаги — [EXECPLAN_PILOT.md](EXECPLAN_PILOT.md). Реальная инфраструктура и аккаунты ещё не подключены.
 

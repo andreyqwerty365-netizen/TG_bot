@@ -2,7 +2,7 @@
 
 Основная ветка: `codex/personal-crm-reliability-web`. Владелец разрешил отдельный `.github/workflows/personal-crm.yml`; остальные изменения остаются внутри модуля CRM. Workflow автоматически запускается после push изменений CRM в эту ветку. Он ничего не развёртывает, не обращается к Amvera и не использует repository secrets. Доступ GITHUB_TOKEN — только contents:read.
 
-Фактическая проверка на 2026-10-15: [run 38704316507](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507), commit 91ba0df, обе jobs success с Python 3.12.15/PostgreSQL 16.15. Пройдены 296 CRM/133 legacy/14 React/18 E2E/load и container HTTPS/restart/encrypted restore. Полные версии, image IDs и ограничения — в ACCEPTANCE.md. Коммит финальной документации не меняет проверенный runtime/config/workflow.
+Фактическая проверка на 2026-10-15: [run 38707830985](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38707830985), commit ad0c56e, обе jobs success с Python 3.12.15/PostgreSQL 16.15. Пройдены 326 CRM/133 legacy/14 React/18 E2E/load и container generated config/HTTPS/restart/encrypted restore. Полные версии, image IDs и ограничения — в ACCEPTANCE.md. Коммит финальной документации не меняет проверенный runtime/config/workflow.
 
 ## Что выполняется на Ubuntu 24.04
 
