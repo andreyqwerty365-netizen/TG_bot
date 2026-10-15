@@ -1,0 +1,8 @@
+{
+    admin off
+    skip_install_trust
+}
+localhost {
+    tls internal
+    import /etc/caddy/routes.caddy
+}

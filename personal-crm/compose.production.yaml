@@ -15,8 +15,8 @@ x-app: &app
   logging: *log
   networks: [data]
   env_file: &identity
-    - {path: /etc/personal-crm/database.env, format: raw}
-    - {path: /etc/personal-crm/identity.env, format: raw}
+    - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/database.env", format: raw}
+    - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/identity.env", format: raw}
   environment: &safe
     CRM_ENVIRONMENT: production
     CRM_OPENAI_ENABLED: "false"
@@ -56,10 +56,10 @@ services:
     mem_limit: 512m
     cpus: 1.0
     env_file:
-      - {path: /etc/personal-crm/database.env, format: raw}
-      - {path: /etc/personal-crm/identity.env, format: raw}
-      - {path: /etc/personal-crm/web.env, format: raw}
-      - {path: /etc/personal-crm/ingress.env, format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/database.env", format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/identity.env", format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/web.env", format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/ingress.env", format: raw}
     networks: [data, proxy]
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready',timeout=3).read()"]
@@ -78,9 +78,9 @@ services:
     mem_limit: 256m
     cpus: 0.5
     env_file:
-      - {path: /etc/personal-crm/database.env, format: raw}
-      - {path: /etc/personal-crm/identity.env, format: raw}
-      - {path: /etc/personal-crm/delivery.env, format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/database.env", format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/identity.env", format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/delivery.env", format: raw}
     command: [python, -m, personal_crm.worker]
     networks: [data, outbound]
   backup:
@@ -90,17 +90,17 @@ services:
     mem_limit: 384m
     cpus: 0.5
     env_file:
-      - {path: /etc/personal-crm/database.env, format: raw}
-      - {path: /etc/personal-crm/identity.env, format: raw}
-      - {path: /etc/personal-crm/backup.env, format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/database.env", format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/identity.env", format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/backup.env", format: raw}
     environment:
       <<: *safe
       CRM_PG_BIN: /usr/lib/postgresql/16/bin
       CRM_BACKUP_DIRECTORY: /var/lib/crm-backup
       CRM_ERASURE_LEDGER: /var/lib/crm-ledger/erasures.crme
     volumes:
-      - /srv/personal-crm/backups:/var/lib/crm-backup
-      - /srv/personal-crm/ledger:/var/lib/crm-ledger
+      - ${CRM_DATA_DIRECTORY:-/srv/personal-crm}/backups:/var/lib/crm-backup
+      - ${CRM_DATA_DIRECTORY:-/srv/personal-crm}/ledger:/var/lib/crm-ledger
     command: [python, -m, personal_crm.remote_backup]
     networks: [data, outbound]
   caddy:
@@ -115,6 +115,7 @@ services:
       ACME_EMAIL: ${ACME_EMAIL:?Set the certificate contact email}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/routes.caddy:/etc/caddy/routes.caddy:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:
@@ -132,4 +133,4 @@ volumes:
   caddy-data: {}
   caddy-config: {}
 secrets:
-  db-password: {file: /etc/personal-crm/db-password}
+  db-password: {file: "${CRM_CONFIG_DIRECTORY:-/etc/personal-crm}/db-password"}

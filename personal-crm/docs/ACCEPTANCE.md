@@ -1,5 +1,13 @@
 # Приёмка Personal CRM
 
+## Переносимые проверки и подготовка Linux CI, 15 октября 2026
+
+На новом изолированном PostgreSQL наборе: **294 CRM passed, 130.55s**, **133 legacy passed, 7.21s**, **14 React unit passed**, TypeScript/build и pip check прошли. Новый `scripts/browser_checks.py` сам применил миграции, запустил собственные API/source на свободном loopback port и остановил их после **18 desktop/mobile E2E passed, 30.7s**. Старые локальные browser процессы не использовались. Из предупреждений: прежний Starlette/AnyIO и локальная Windows cache-directory permission warning; assertion failures отсутствуют.
+
+15 новых guard/environment tests проверяют запрет рабочей/удалённой БД, разделение трёх database names, очистку унаследованных integration credentials, ограничение Docker cleanup своим project/runtime и запрет удалённого daemon. Workflow YAML/permissions/triggers и private PG/API ports проверены статически. Владелец явно разрешил один `.github/workflows/personal-crm.yml` вне модуля; workflow не развёртывает и не использует рабочие secrets.
+
+Подготовлен отдельный контейнерный rehearsal настоящих production images, HTTPS с локальной CA, session/Origin/CSRF, restart persistence и encrypted PostgreSQL restore. Для безопасного воспроизведения production paths получили параметры с прежними defaults; Caddy routes общие для public TLS и isolated internal TLS. **Linux Docker rehearsal пока Not Run** — результат будет зафиксирован только после фактического workflow. Инструкция: [CLOUD_CHECKS.md](CLOUD_CHECKS.md). Настоящие VPS/SSH/DNS/ACME/S3/Telegram, reboot и Amvera остаются Not Run.
+
 ## Подготовка первого личного запуска, 14 октября 2026
 
 Итог: **279 CRM passed, 123.61s**, одно прежнее предупреждение Starlette/AnyIO; **133 legacy passed, 6.16s**, **14 React unit passed**, TypeScript/Vite build прошёл. **18 desktop/mobile E2E passed, 32.0s** включают сохранённый cookie вход, capture/короткое уточнение, logout и фактический operational статус. PostgreSQL 16.10 настоящая; Python 3.12.14/Windows, только disposable databases и synthetic owners. `pip check` успешен. Core/Stage2/mail demos и 28-day simulation прошли с real_external_calls=0.
