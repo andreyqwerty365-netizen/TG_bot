@@ -53,8 +53,9 @@ def transition(state,checks,notify):
 
 def heartbeat_url(value):
     parsed=urlsplit(value)
-    if (parsed.scheme!='https' or parsed.hostname!='hc-ping.com' or parsed.netloc!='hc-ping.com'
-            or parsed.query or parsed.fragment or not re.fullmatch(r'/[a-f0-9-]{36}',parsed.path)):
+    approved=(parsed.netloc=='hc-ping.com' and re.fullmatch(r'/[a-f0-9-]{36}',parsed.path)
+              or parsed.netloc=='cronitor.link' and re.fullmatch(r'/p/[a-f0-9]{32}/crm-ops-heartbeat',parsed.path))
+    if parsed.scheme!='https' or parsed.query or parsed.fragment or not approved:
         raise ValueError('heartbeat_url_invalid')
     return value
 
@@ -92,7 +93,8 @@ def telegram(config,message):
 
 def ping(url,failed=False):
     parsed=urlsplit(heartbeat_url(url))
-    request(parsed.hostname,parsed.path+('/fail' if failed else ''))
+    suffix=('?state=fail' if parsed.hostname=='cronitor.link' else '/fail') if failed else ''
+    request(parsed.hostname,parsed.path+suffix)
 
 
 def command(args):

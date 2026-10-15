@@ -86,3 +86,12 @@ def test_monitor_rejects_failed_backup_report_even_with_recent_time(tmp_path,mon
     monkeypatch.setattr(m,'command',lambda *args:'true healthy')
     checks=m.collect({'crm_origin':'https://example.invalid','legacy_backup_report':str(report),'restore_report':str(tmp_path/'missing.json')},now)
     assert checks['legacy_backup'] is False
+
+
+def test_cronitor_heartbeat_uses_its_fixed_origin_and_failure_protocol(monkeypatch):
+    m=module();sent=[]
+    value='https://cronitor.link/p/'+('a'*32)+'/crm-ops-heartbeat'
+    assert m.heartbeat_url(value)==value
+    monkeypatch.setattr(m,'request',lambda host,path:sent.append((host,path)))
+    m.ping(value);m.ping(value,failed=True)
+    assert sent==[('cronitor.link','/p/'+('a'*32)+'/crm-ops-heartbeat'),('cronitor.link','/p/'+('a'*32)+'/crm-ops-heartbeat?state=fail')]
