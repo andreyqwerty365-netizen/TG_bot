@@ -1,5 +1,10 @@
 # Приёмка Personal CRM
 
+## Дополнение 2026-10-15: отдельные внешние копии старого бота
+
+По отдельному поручению владельца проверены обе legacy SQLite, вне PostgreSQL и без Telegram polling. L-B01: online backup committed WAL и обеих баз; L-B02: аутентификация, hash/schema/rows/integrity и запрет перезаписи; L-B03: S3 readback, scoped 30-day retention и сохранность прежней копии при ошибке; L-B04: изолированный download/restore; L-B05: readonly WAL wrapper и concurrent lock. Реализация/синтетические проверки — test_legacy_backup.py, процедура и фактический S3 restore — [docs/LEGACY_BACKUP.md](LEGACY_BACKUP.md). Daily timer L-B06 принимается отдельно по systemctl и завершённому service; запуск следующей ночью не подменять ручной проверкой.
+
+
 ## Генератор приватной серверной конфигурации, 15 октября 2026
 
 Добавлены `personal_crm.deployment_setup generate/check`, тесты `tests/test_deployment_setup.py` и общая генерация файлов для `scripts/container_checks.py`. Проверены matching DB password/URL, новый owner/key, Argon2id, отключённые интеграции, отказ от перезаписи и checkout, injection/дубли/неизвестные ключи, origin/timezone/hash/key, безопасные ошибки, согласованность включённых Telegram/S3 без внешних запросов. Локально новые tests **29 passed/1 Linux-only skip**; полный backend прогон до пяти последних дополнительных cases — **320 passed/1 skip, 121.34s**, прежнее Starlette/AnyIO warning.

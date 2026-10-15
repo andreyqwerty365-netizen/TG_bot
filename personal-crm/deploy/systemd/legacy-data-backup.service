@@ -1,0 +1,12 @@
+[Unit]
+Description=Verified encrypted legacy SQLite backup to S3
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/personal-crm/repository/personal-crm
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/personal-crm/repository/personal-crm/deploy/legacy_backup_job.py
+TimeoutStartSec=10min

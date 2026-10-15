@@ -14,4 +14,5 @@ web/playwright-report/
 *.crmb
 *.crme
 *.crmx
+*.botb
 *.partial
