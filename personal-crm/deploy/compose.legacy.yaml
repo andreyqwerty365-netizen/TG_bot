@@ -39,3 +39,6 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
+networks:
+  default:
+    enable_ipv6: ${LEGACY_ENABLE_IPV6:-false}
