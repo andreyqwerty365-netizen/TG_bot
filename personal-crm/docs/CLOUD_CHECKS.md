@@ -14,6 +14,8 @@
 
 Для HTTPS используется Caddy internal CA, который доверяется только конкретному HTTP-клиенту проверки. TLS verification не отключается и локальная CA не устанавливается в системный trust store. Production и laboratory Caddy используют общие routes.caddy; боевой Caddyfile сохраняет обычный автоматический публичный TLS.
 
+Конфигурация контейнеров теперь создаётся общей функцией `deployment_setup.render_configuration`: случайные DB credentials/owner/key, Argon2id и image IDs фактической сборки. До замены только lab origin на localhost проходит настоящий offline check всех восьми файлов; после этого тот же комплект используется для HTTPS/restore испытания. Production CLI дополнительно запрещает запись внутри checkout и принимает пароль только через приватный терминал.
+
 Проверяются actual HTTPS/secure cookie/Origin/CSRF, закрытые docs, приложение и очередь после restart, запрет fake delivery в production, реальный pg_dump из backup image и изолированный restore с hold/отозванными сессиями/выключенными напоминаниями. Image IDs и успешный JSON отчёт появляются в summary job. Это local image content IDs, а не опубликованные registry digests.
 
 ## Воспроизведение в отдельном облачном окружении

@@ -10,6 +10,9 @@
 
 ## Progress
 
+- [x] (2026-10-15) Владелец подтвердил отсутствие VPS/домена. Реализованы offline generator/check новой приватной конфигурации: случайные отдельные DB credentials/owner/backup key, скрытый ввод пароля, отказ от перезаписи и хранения в checkout. Новые проверки локально 29 passed/1 Linux-only skip; полный backend прогон до последних пяти дополнительных cases — 320 passed/1 skip. Синтетический container rehearsal теперь получает настройки через тот же renderer. Реальные внешние проверки остаются отдельными.
+- [ ] (2026-10-15) Проверить новый renderer/check в actual Linux CI и Docker HTTPS/restart/restore, сохранить результаты и commit. VPS/домен пока не приобретены; это не мешает разработке настройки.
+
 - [x] (2026-10-15) Подготовлены переносимый browser runner и создание трёх новых isolated CI databases; локально 294 CRM tests/133 legacy/14 React/build и 18 E2E через новый runner прошли. Подготовлены synthetic Docker/HTTPS/restart/restore rehearsal и Linux workflow. Владелец явно разрешил единственное исключение из scope: `.github/workflows/personal-crm.yml`. Действующие боты/Amvera не меняются.
 - [x] (2026-10-15) Workflow опубликован в 311fc77. Первый actual Ubuntu run 38702871815: validation job прошла — 294 CRM/133 legacy/14 React/18 E2E/build/10k load. Контейнерная job собрала images, но выявила конфликт статического Caddy IP с динамическим API allocation; весь run не считается успешным.
 - [x] (2026-10-15) Повторный run 38703604939 на 8aad53a полностью зелёный: 296 CRM/133 legacy/14 React/18 E2E/load и production image/HTTPS/CSRF/session restart/encrypted restore. Caddy allocation исправлен, метка OS показывает Linux.
@@ -40,6 +43,8 @@ VPS — отдельная виртуальная машина с общими �
 
 ## Decision Log
 
+2026-10-15: для будущего VPS выбран offline CLI `personal_crm.deployment_setup`, доступный прямо в runtime image. `generate` создаёт только новую приватную директорию вне checkout, `check` читает только явно выбранные файлы и ничего не меняет. Telegram/S3 syntax не считается внешней приёмкой: состояние `configured_unverified`, отдельный список not_checked. Установки Python на VPS и чтения домашнего .env не требуется.
+
 2026-10-15: после успешного container rehearsal базовые production Python 3.12.10/PostgreSQL 16.10 обновляются до поддерживаемых security patch 3.12.15/16.15 с отдельным полным CI. Источники: https://www.python.org/downloads/release/python-31215/ и https://www.postgresql.org/docs/16/release-16-15.html; official docker-library/python подтверждает 3.12.15 для slim-bookworm. Major версии и схема CRM не меняются. Development исторический compose остаётся отдельным; никаких production volume migrations сейчас нет.
 
 2026-10-15: владелец не запускал облачную передачу и поручил продолжить здесь. Для фактических Linux испытаний разрешил добавить отдельный `.github/workflows/personal-crm.yml`, остальные изменения остаются внутри personal-crm. Workflow только тестирует, не развёртывает и не читает repository secrets. Изолированный Docker rehearsal должен использовать отдельный project, собственные synthetic env/volumes и локальный CA, с cleanup только собственных ресурсов; настоящие DNS/ACME/S3/Telegram не подключаются.
@@ -53,6 +58,8 @@ VPS — отдельная виртуальная машина с общими �
 Веб-вход: один владелец, пароль, сохранённая защищённая серверная сессия. Открытая регистрация отсутствует. Обновления приложения выкладываются как проверенная версия с возможностью отката; push в GitHub сам по себе не запускает непроверенную версию в production. Публичный репозиторий содержит код и шаблоны, а рабочие ключи/базы находятся на сервере и в защищённых копиях.
 
 ## Surprises & Discoveries
+
+2026-10-15: malformed database URL выбрасывает SQLAlchemy ArgumentError, а не ValueError. Отдельный red/green regression подтвердил безопасную обработку CLI без traceback/приватного значения. Генератор не перезаписывает даже пустую существующую директорию: это предотвращает неявную смену DB password/backup key; незавершённая запись остаётся для приватной операторской проверки.
 
 2026-10-15: первый Linux container run дошёл до запуска production services и завершился `Address already in use`: без отдельного ip_range Docker мог выдать API адрес 172.30.71.2 до старта Caddy. Статический адрес Caddy теперь исключён из динамического пула; trust Uvicorn остаётся строго 172.30.71.2. Отдельный regression проверяет subnet/pool/static и соответствие Dockerfile. Первый Linux load также выявил старую hardcoded метку Windows; теперь OS определяется фактически, а версия PostgreSQL читается с сервера. Первый run URL: https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38702871815 (validation success, containers failure).
 
@@ -144,6 +151,8 @@ VPS — отдельная виртуальная машина с общими �
 Первый production deploy и последующие переносы выполняются только с предоставленным владельцем доступом и подтверждённой конкретной процедурой. Этот план не является свидетельством регистрации домена, покупки сервера, разрешения читать произвольную почту или отключения Amvera. Подготовительные code/tests/docs выполнять автономно в разрешённой области.
 
 ## Outcomes & Retrospective
+
+Дополнение 2026-10-15: следующий ручной барьер уменьшен до подготовки восьми согласованных файлов через один приватный terminal command и offline check. Инструкция PILOT_DEPLOYMENT.md содержит exact docker run без сети, с минимальным bind и без установки Python на хост. Сборка и реальный Linux smoke нового комплекта ещё ожидаются; работающие VPS/Telegram/S3 не заявлены.
 
 Результат продолжения 2026-10-15: подготовка к первому VPS испытанию проверена actual Linux CI без домашнего компьютера. Source commit 91ba0df и run https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507: обе jobs success. В финальных images actual Python 3.12.15, PostgreSQL server/client 16.15, Caddy 2.11.7; HTTPS local CA, CSRF/secure sessions, restart persistence, encrypted dump/isolated restore подтверждены. CI images существуют на временном runner и не опубликованы в registry; на VPS их нужно собрать из проверенного source commit и записать собственные IDs. Оставшиеся действия требуют VPS/DNS/нового Telegram/S3, после чего идут реальные проверки и пользовательский пилот. Нет оснований объявлять этапы 3–6 завершёнными.
 

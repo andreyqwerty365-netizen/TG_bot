@@ -1,6 +1,5 @@
 """Synthetic Linux Docker rehearsal: actual production image, Caddy TLS, restart and restore."""
 import argparse
-import base64
 import json
 import os
 import re
@@ -15,7 +14,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import httpx
-from argon2 import PasswordHasher
+from personal_crm.deployment_setup import render_configuration,check as check_configuration
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -44,25 +43,13 @@ def run():
     config=runtime/'config';config.mkdir(mode=0o700)
     for name in ('backups','ledger'):(runtime/name).mkdir(mode=0o700)
     env={k:v for k,v in os.environ.items() if not k.upper().startswith(('CRM_','OPENAI_','BOT_','PG','DOCKER_HOST','DOCKER_CONTEXT','DOCKER_TLS'))}
-    password='synthetic-'+secrets.token_urlsafe(24);db_password=secrets.token_hex(20)
+    password='synthetic-'+secrets.token_urlsafe(24)
     https_port,http_port=free_port(),free_port()
     while http_port==https_port:http_port=free_port()
-    origin=f'https://localhost:{https_port}';url=f'postgresql+psycopg://crm:{db_password}@db:5432/personal_crm'
+    origin=f'https://localhost:{https_port}'
     env.update(CRM_IMAGE='personal-crm:check-'+suffix,CRM_BACKUP_IMAGE='personal-crm-backup:check-'+suffix,
         CRM_HOST='localhost',ACME_EMAIL='synthetic@example.invalid',CRM_CONFIG_DIRECTORY=str(config),
         CRM_DATA_DIRECTORY=str(runtime),CRM_CI_HTTPS_PORT=str(https_port),CRM_CI_HTTP_PORT=str(http_port))
-    files={
-        'db-password':db_password+'\n','database.env':'CRM_DATABASE_URL='+url+'\n',
-        'identity.env':'CRM_OWNER_ID=synthetic-container-ci\nCRM_TIMEZONE=Europe/Moscow\n',
-        'web.env':'CRM_WEB_PASSWORD_HASH='+PasswordHasher().hash(password)+'\nCRM_WEB_ORIGIN='+origin+
-            '\nCRM_OWNER_TOKEN=\nCRM_BACKUP_ENABLED=false\nCRM_S3_ENABLED=false\nCRM_TELEGRAM_SEND_ENABLED=false\n',
-        'ingress.env':'CRM_TELEGRAM_WEBHOOK_ENABLED=false\n','delivery.env':'CRM_TELEGRAM_SEND_ENABLED=false\n',
-        'backup.env':'CRM_BACKUP_ENABLED=false\nCRM_BACKUP_EXTERNAL_TARGET_CONFIRMED=false\nCRM_S3_ENABLED=false\nCRM_BACKUP_KEY='+
-            base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()+'\n',
-    }
-    for name,content in files.items():
-        descriptor=os.open(config/name,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-        with os.fdopen(descriptor,'w',encoding='utf-8') as stream:stream.write(content)
     compose=['docker','compose','-p',project,'-f','compose.production.yaml','-f','compose.ci.yaml','--profile','backup']
     with (runtime/'commands.log').open('w',encoding='utf-8') as log:
         def command(args,*,timeout=180,check=True):
@@ -78,6 +65,16 @@ def run():
             command(['docker','build','-f','Dockerfile.production','--target','backup','-t',env['CRM_BACKUP_IMAGE'],'.'],timeout=1200)
             images={name:command(['docker','image','inspect',env[key],'--format','{{.Id}}'])
                     for name,key in [('runtime','CRM_IMAGE'),('backup','CRM_BACKUP_IMAGE')]}
+            files=render_configuration(directory=config,host='crm.example.org',email='synthetic@example.org',
+                image=images['runtime'],backup_image=images['backup'],password=password)
+            for name,content in files.items():
+                descriptor=os.open(config/name,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+                with os.fdopen(descriptor,'w',encoding='utf-8') as stream:stream.write(content)
+            assert check_configuration(config)['status']=='configuration_valid'
+            url=files['database.env'].strip().split('=',1)[1]
+            # Only this laboratory substitutes public DNS/ACME with its local CA/port.
+            (config/'web.env').write_text(files['web.env'].replace('https://crm.example.org',origin),encoding='utf-8')
+            env.update(CRM_IMAGE=images['runtime'],CRM_BACKUP_IMAGE=images['backup'])
             runtime_python=command(['docker','run','--rm',env['CRM_IMAGE'],'python','--version'])
             # Host bind directories belong to this generated laboratory only.
             command(['docker','run','--rm','--user','0:0','--mount',f'type=bind,source={runtime},target=/lab',
@@ -149,6 +146,7 @@ def run():
                 'pg_dump_version':command([*compose,'run','--rm','--no-deps','backup','/usr/lib/postgresql/16/bin/pg_dump','--version']),
                 'caddy_version':command([*compose,'exec','-T','caddy','caddy','version']),
                 'https':'Caddy local CA verified without insecure TLS','session_restart':'passed',
+                'generated_configuration':'offline check and actual runtime passed',
                 'csrf_origin':'passed','disabled_delivery':'passed','encrypted_local_restore':'passed',
                 'not_run':['VPS reboot','public DNS/ACME','real S3','real Telegram']}
             (runtime/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')

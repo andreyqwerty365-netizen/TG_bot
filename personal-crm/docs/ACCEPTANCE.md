@@ -1,5 +1,11 @@
 # Приёмка Personal CRM
 
+## Генератор приватной серверной конфигурации, 15 октября 2026
+
+Добавлены `personal_crm.deployment_setup generate/check`, тесты `tests/test_deployment_setup.py` и общая генерация файлов для `scripts/container_checks.py`. Проверены matching DB password/URL, новый owner/key, Argon2id, отключённые интеграции, отказ от перезаписи и checkout, injection/дубли/неизвестные ключи, origin/timezone/hash/key, безопасные ошибки, согласованность включённых Telegram/S3 без внешних запросов. Локально новые tests **29 passed/1 Linux-only skip**; полный backend прогон до пяти последних дополнительных cases — **320 passed/1 skip, 121.34s**, прежнее Starlette/AnyIO warning. Actual новый Linux/Docker run пока ожидается; предыдущий run ниже относится к прежнему source commit.
+
+`configuration_valid` означает корректные приватные файлы, а не работающую CRM. Без настоящего VPS/домена не выполнены public HTTPS/БД/heartbeat/reboot, без согласованных отдельного Telegram/S3 — identity/delivery/backup/remote restore. Генератор не читает найденные .env/credentials, не развёртывает и не включает эти интеграции.
+
 ## Итоговый Linux CI на production patch images, 15 октября 2026
 
 [Run 38704316507](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507), source commit **91ba0dfcc460ad35bd09c66baae222ade1bd615f**: **обе jobs success**. Ubuntu 24.04.5, Python 3.12.15, Node 24.21.0, PostgreSQL server/client 16.15. **296 CRM passed (55.85s), 133 legacy (3.31s), 14 React, 18 desktop/mobile E2E (32.8s)**; TypeScript/build/pip check, migrations и реальное восстановление прошли. Одно прежнее предупреждение Starlette/AnyIO, без assertion failures.

@@ -17,9 +17,41 @@
 
 Сохранить два полученных `sha256:...` в CRM_IMAGE/CRM_BACKUP_IMAGE. Проверить `pg_dump --version` у backup image: major 16, клиент не старше сервера. Перед реальным запуском обновления базовых Python/Node/PostgreSQL/Caddy images проверяются на Linux, затем сохраняются их точные digests и результаты в приватном журнале. Имена тегов в шаблоне не являются проверенным digest.
 
-Создать `/etc/personal-crm` root:root mode 0700. Скопировать только пустые примеры `deploy/examples/*.env.example` в одноимённые `*.env`, chmod 0600. Дополнительно создать `db-password` mode 0600 с новым паролем PostgreSQL. В database.env указать URL `postgresql+psycopg://crm:<URL-encoded-password>@db:5432/personal_crm`; пароль должен соответствовать db-password. Не менять пароль уже созданного volume простым редактированием env: это не обновляет роль PostgreSQL.
+### Подготовка новых приватных файлов одной командой
 
-В identity.env задать новый owner и Europe/Moscow; в deploy.env — согласованный CRM_HOST, ACME_EMAIL и два image ID. В web.env — `CRM_WEB_ORIGIN=https://<CRM_HOST>` без пути и завершающего `/`. Хэш нового пароля получить интерактивно:
+После сборки images выполнить на будущем Linux VPS из `personal-crm/` (команды ниже ещё не запускались на настоящем сервере). Вместо `crm.example.org` и `operator@example.org` указать согласованные домен и контакт сертификата. Это только общедоступные параметры; пароль не передаётся аргументом.
+
+    crm_runtime_image=$(docker image inspect personal-crm:pilot-COMMIT --format '{{.Id}}')
+    crm_backup_image=$(docker image inspect personal-crm-backup:pilot-COMMIT --format '{{.Id}}')
+    sudo install -d -m 0700 /etc/personal-crm
+    docker run --rm -it --network none --user 0:0 \
+      --mount type=bind,source=/etc/personal-crm,target=/etc/personal-crm \
+      "$crm_runtime_image" python -m personal_crm.deployment_setup generate \
+      --directory /etc/personal-crm/config --host crm.example.org --email operator@example.org \
+      --image "$crm_runtime_image" --backup-image "$crm_backup_image"
+
+Docker-доступ должен уже быть разрешён оператору; при необходимости запускать Docker через sudo. Генератор доступен в собранном runtime image, устанавливать Python/pip на VPS дополнительно не требуется. Пароль от 12 символов вводится без отображения дважды в интерактивном терминале. Команда отказывается читать пароль из pipe и не читает существующий `.env`, переменные интеграций или рабочие базы. Сетевой доступ контейнера отключён.
+
+Результат `configuration_created`: восемь файлов внутри **новой** `/etc/personal-crm/config` mode 0700, файлы 0600. Создаются согласованные db-password/database.env, новый случайный owner, Москва/09:00 при последующем initialize-owner, Argon2id hash, отдельный случайный 256-bit backup key, deploy.env с проверяемыми image IDs. Telegram, backup/S3, почта и ИИ остаются выключены. Пароли, hash, owner и ключ в stdout не выводятся. Проверка не доказывает наличие images на сервере — IDs берутся из фактического локального build.
+
+**Сохранить независимую приватную копию CRM_BACKUP_KEY из backup.env вне VPS и bucket до включения резервирования.** Не отправлять файл/ключ в GitHub или общий журнал. Пока не настроены внешнее S3 и проверенное восстановление, реальные личные данные не вводить.
+
+Повторный generate отказывается работать даже с пустой существующей директорией: пароли/owner/ключ не меняются. При прерванной записи частично созданная директория сохраняется; оператор приватно проверяет её. Не удалять рабочую конфигурацию и не запускать генератор для смены пароля существующего volume. Ротация — отдельная операция с учётом данных и прежних архивов.
+
+### Проверка файлов перед запуском
+
+    docker run --rm --network none --user 0:0 \
+      --mount type=bind,source=/etc/personal-crm/config,target=/etc/personal-crm/config,readonly \
+      "$crm_runtime_image" python -m personal_crm.deployment_setup check --directory /etc/personal-crm/config
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml config --quiet
+
+Первый результат `configuration_valid` проверяет строго выбранные файлы: права/владельца, отсутствие symlink и неизвестных/повторённых ключей, совпадение DB credentials, домен/origin, Argon2id, timezone, immutable image IDs и согласованность флагов. Код возврата 1 и безопасное сообщение означают ошибку конфигурации; значения и содержимое исключения не выводятся. `check` ничего не записывает и не подставляет файлы в shell/environment. Для него запускать **того же владельца приватных файлов** (в примере root).
+
+Это offline проверка файлов. Она не проверяет Docker, DNS, сертификат, БД, heartbeat, Telegram getMe, внешнее S3, фактическую доставку/восстановление или reboot. При заполнении и включении Telegram/S3 результат остаётся `configured_unverified` до отдельных реальных испытаний. `not_checked` перечисляет эти обязательные проверки; `configuration_valid` не является готовностью к использованию. Compose `config --quiet` также не печатает раскрытые secrets.
+
+Пустые примеры `deploy/examples/*.env.example` оставлены для ручной настройки. Для неё создавать отдельную новую приватную директорию, указать её CRM_CONFIG_DIRECTORY в deploy.env и заменить пути в командах ниже. В database.env URL `postgresql+psycopg://crm:<URL-encoded-password>@db:5432/personal_crm` должен соответствовать db-password. Не менять пароль уже созданного volume простым редактированием env: это не обновляет роль PostgreSQL.
+
+При ручной настройке в identity.env задать новый owner и Europe/Moscow; в deploy.env — согласованный CRM_HOST, ACME_EMAIL и два image ID. В web.env — `CRM_WEB_ORIGIN=https://<CRM_HOST>` без пути и завершающего `/`. Хэш нового пароля получить интерактивно:
 
     python -m personal_crm.pilot_setup password-hash
 
@@ -31,19 +63,19 @@
 
 ## Первый запуск и внешний backup
 
-    docker compose --env-file /etc/personal-crm/deploy.env -f compose.production.yaml config --quiet
-    docker compose --env-file /etc/personal-crm/deploy.env -f compose.production.yaml up -d db
-    docker compose --env-file /etc/personal-crm/deploy.env -f compose.production.yaml run --rm migrate
-    docker compose --env-file /etc/personal-crm/deploy.env -f compose.production.yaml run --rm --no-deps api python -m personal_crm.pilot_setup initialize-owner
-    docker compose --env-file /etc/personal-crm/deploy.env -f compose.production.yaml up -d api source caddy
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml config --quiet
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml up -d db
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml run --rm migrate
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml run --rm --no-deps api python -m personal_crm.pilot_setup initialize-owner
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml up -d api source caddy
 
 Init owner повторяемый: создаёт сводку 09:00 и одну инициативу/сутки только у нового профиля; последующие пользовательские настройки не перезаписывает. DNS A должен указывать на VPS. Проверить HTTPS, `/health`, `/ready`, вход, reload, logout, телефон. `/ready` проверяет фактическую схему, hold и свежесть включённых обработчиков, а не сообщает фиктивную готовность.
 
-Создать `/srv/personal-crm/backups` и `/srv/personal-crm/ledger` с владельцем UID/GID 10002 и mode 0700. Создать новый ключ через `personal_crm.maintenance keygen`, сохранить **независимую приватную копию вне VPS и bucket**; в backup.env задать ключ, HTTPS endpoint/bucket/credentials. Bucket принадлежит владельцу, права ключа ограничены отдельным CRM prefix. Включить обе CRM_BACKUP_ENABLED/CRM_S3_ENABLED и CRM_BACKUP_EXTERNAL_TARGET_CONFIRMED только после проверки внешнего назначения. В web.env также включить backup/S3 флаги, чтобы статус и readiness учитывали этот процесс.
+Создать `/srv/personal-crm/backups` и `/srv/personal-crm/ledger` с владельцем UID/GID 10002 и mode 0700. Генератор уже создал backup key; сохранить **независимую приватную копию вне VPS и bucket**, не генерировать другой поверх него. Только для ручной начальной настройки до первого ledger/archive получить ключ через `personal_crm.maintenance keygen`. В backup.env задать HTTPS endpoint/bucket/credentials. Bucket принадлежит владельцу, права ключа ограничены отдельным CRM prefix. Включить обе CRM_BACKUP_ENABLED/CRM_S3_ENABLED и CRM_BACKUP_EXTERNAL_TARGET_CONFIRMED только после проверки внешнего назначения. В web.env также включить backup/S3 флаги, чтобы статус и readiness учитывали этот процесс.
 
-    docker compose --env-file /etc/personal-crm/deploy.env -f compose.production.yaml --profile backup run --rm --no-deps backup python -m personal_crm.maintenance init-ledger
-    docker compose --env-file /etc/personal-crm/deploy.env -f compose.production.yaml --profile backup run --rm --no-deps backup python -m personal_crm.remote_backup --once
-    docker compose --env-file /etc/personal-crm/deploy.env -f compose.production.yaml --profile backup up -d backup api
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml --profile backup run --rm --no-deps backup python -m personal_crm.maintenance init-ledger
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml --profile backup run --rm --no-deps backup python -m personal_crm.remote_backup --once
+    docker compose --env-file /etc/personal-crm/config/deploy.env -f compose.production.yaml --profile backup up -d backup api
 
 Первый результат должен быть `verified_remote`. Повтор раньше 24 часов — `not_due`; возраст последней копии сохраняется между рестартами. Каждая новая копия шифруется AES-256-GCM до upload, читается обратно и проверяется. Retention 30 дней только того же scope после новой подтверждённой remote копии; upload failure не удаляет прежнюю. Размер архива ограничен 64 MiB: при превышении worker сообщает ошибку, требуется пересмотр вместимости, лимит не отключать молча.
 
