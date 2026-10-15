@@ -12,8 +12,8 @@ Reminders created in the web CRM reach the owner through the selected new bot. E
 - [x] (2026-10-15) Observed4 failing delivery-monitor cases, then15 monitor cases pass after implementing optional required-delivery container+heartbeat checks.
 - [x] (2026-10-15) Existing CRM outbound network has noIPv6 and cannot reach Telegram overIPv4; old-bot network hasIPv6. Do not modify or attach to the old network.
 - [x] (2026-10-15) Compose5.6 config validates separate IPv6-only egress; new-bot getMe/private getChat/empty webhook verified. Existing runtime scheduled an actual synthetic reminder8seconds ahead: idle/sent/idle, durable attemptsuccess, exactly1attempt; disposable PostgreSQL removed. Added failed/unknown queue guard after another observed red case.18 targeted monitor/network/transport checks pass; existing Starlette warning only.
-- [ ] Publish validated implementation, enable only delivery and API status configuration, verify old-bot identity/restarts unchanged.
-- [ ] Document actual results and rollback; publish final handoff.
+- [x] (2026-10-15) Published9d145ad; enabled only delivery/API send-state using existing runtime image. Fresh13:32:46UTC monitor9/9healthy/externalconfigured, ready200, deliveryrunning/restarts0; API has no token/webhookfalse. All original images unchanged; source/db/backup/Caddy/legacy ID/start/restarts unchanged. Live tasks/sources/history/schema counts match. Private executable rollback saved.
+- [x] (2026-10-15) Scheduled monitor13:34:48UTC again9/9healthy. Delivery heartbeat fresh/restarts0, all backup/restore/monitor timers active; no failed/unknown jobs. Existing digest hour9 retained; today's empty digest cancelled without sending. Synthetic test DB removed, original legacy/source/db/backup/Caddy identities unchanged. Linux CI38743431447 both jobs success, including full backend/bot/frontend/browser/load and HTTPS/restart/restore. Updated user/operator instructions, acceptance and current handoff for final publication.
 
 ## Surprises & Discoveries
 
@@ -41,4 +41,4 @@ Keep a copy of web.env/delivery.env/ingress.env/deploy.env before enabling. On f
 
 ## Outcomes & Retrospective
 
-In progress. Production outbound delivery remains disabled until bot identity, route and isolated scheduled send verification pass.
+Production outbound delivery is enabled through the owner-selected new bot, using the already tested runtime and an independent IPv6 network. Real scheduled synthetic delivery passed without changing live tasks. Technical alerts/restore timers remain enabled; the monitor now also covers delivery. Linux CI38743431447 both jobs passed, and actual scheduled monitor execution confirms healthy delivery. Future user-created reminders and reboot of this new worker are not yet observed. No old-bot changes or new receiving process were needed.

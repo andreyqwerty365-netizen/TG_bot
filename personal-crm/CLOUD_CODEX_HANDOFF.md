@@ -1,5 +1,13 @@
 # Промпт для продолжения CRM в облачном Codex
 
+## Напоминания Telegram включены15октября2026
+
+Эта секция заменяет прежние запреты/статусы о выключенной новой CRM Telegram только для исходящей доставки. Владелец явно выбрал @Technical_supp_bot для напоминаний. Реализация9d145ad: отдельный IPv6-only egress и delivery worker с прежним проверенным CRM image2419053, API пересоздан с send=true без токена. Webhook/polling/mail/AI выключены. Старый бот, source/db/backup/Caddy не перезапускались; их ID/image/start/restarts сверены с baseline. Для операций delivery ОБЯЗАТЕЛЕН compose.telegram-ipv6.yaml вместе с compose.production.yaml; иначе потеряется рабочий маршрут. Не запускать общий compose up/down/migrate.
+
+Прочитать EXECPLAN_TELEGRAM_DELIVERY.md и docs/TELEGRAM_DELIVERY.md. Реальный synthetic PostgreSQL test поставил напоминание на8секунд вперёд и подтвердил idle/sent/idle, Attemptsuccess/Telegram providerID, ровно1попытка. Temporary test DB удалена, рабочие tasks/sources/history/schema counts не менялись. На production delivery running/restarts0, publicready200, monitor9checkshealthy/externalconfigured, webhookfalse и API без bot token. Приватный откат/evidence в /etc/personal-crm/operator/telegram-delivery-20261015. Монитор теперь замечает отсутствие/зависание delivery и failed/unknown queue, уведомляет выбранного владельца; unknown не повторять автоматически. Сводка использует час существующего профиля, точные напоминания — явно заданное поле у дела. Будущие пользовательские напоминания и reboot этого нового worker ещё не наблюдались.
+
+Linux CI38743431447 обе jobs success:368 CRM/133 repository bot/19React/22browser, load targets и production containers HTTPS/restart/encrypted restore. Реальный scheduled monitor13:34:48UTC9/9healthy. Production очередь содержит только отменённую пустую сводку, неудачных/неопределённых отправок нет; digest_hour9 сохранён. Финальный коммит меняет только документы, проверенный runtime/код доставки не пересобирается.
+
 ## Мониторинг и восстановление: актуально 15 октября 2026
 
 Эта секция заменяет прежние статусы об отсутствии alerts/restore drills. Реализация0199f81 и126b755 опубликована и установлена на VPS; документы обновляются отдельным коммитом. Прочитать EXECPLAN_MONITORING.md и docs/MONITORING.md. CRM api/source остаются2419053, backup4232585; checkout не означает обновление этих контейнеров. Старый receiver не перезапускали.
