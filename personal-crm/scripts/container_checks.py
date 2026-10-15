@@ -78,6 +78,7 @@ def run():
             command(['docker','build','-f','Dockerfile.production','--target','backup','-t',env['CRM_BACKUP_IMAGE'],'.'],timeout=1200)
             images={name:command(['docker','image','inspect',env[key],'--format','{{.Id}}'])
                     for name,key in [('runtime','CRM_IMAGE'),('backup','CRM_BACKUP_IMAGE')]}
+            runtime_python=command(['docker','run','--rm',env['CRM_IMAGE'],'python','--version'])
             # Host bind directories belong to this generated laboratory only.
             command(['docker','run','--rm','--user','0:0','--mount',f'type=bind,source={runtime},target=/lab',
                 env['CRM_IMAGE'],'python','-c',"import os; [os.chown('/lab/'+n,10002,10002) for n in ('backups','ledger')]"])
@@ -144,6 +145,9 @@ def run():
                 client.post('/auth/logout',headers=headers).raise_for_status()
                 assert client.get('/auth/session').status_code==401
             report={'status':'passed','platform':'Linux Docker','image_ids':images,
+                'runtime_python':runtime_python,'postgresql_version':query('personal_crm','SHOW server_version'),
+                'pg_dump_version':command([*compose,'run','--rm','--no-deps','backup','/usr/lib/postgresql/16/bin/pg_dump','--version']),
+                'caddy_version':command([*compose,'exec','-T','caddy','caddy','version']),
                 'https':'Caddy local CA verified without insecure TLS','session_restart':'passed',
                 'csrf_origin':'passed','disabled_delivery':'passed','encrypted_local_restore':'passed',
                 'not_run':['VPS reboot','public DNS/ACME','real S3','real Telegram']}

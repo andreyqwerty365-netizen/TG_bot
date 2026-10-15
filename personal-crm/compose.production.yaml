@@ -27,7 +27,7 @@ x-app: &app
     migrate: {condition: service_completed_successfully}
 services:
   db:
-    image: postgres:16.10
+    image: postgres:16.15
     restart: unless-stopped
     mem_limit: 768m
     cpus: 1.0

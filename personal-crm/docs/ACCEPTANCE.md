@@ -2,6 +2,12 @@
 
 ## Переносимые проверки и подготовка Linux CI, 15 октября 2026
 
+Повтор после исправления IP: [38703604939](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38703604939), commit 8aad53a, **обе jobs success**. Linux: **296 CRM (58.49s), 133 legacy (3.55s), 14 React, 18 E2E (28.8s)**, build/pip check, 10 000 задач/10 клиентов p95 0.1442/0.2330/0.2237s. Отчёт теперь правильно фиксирует Linux и фактический PostgreSQL server 16.10/client 16.15.
+
+Production container rehearsal реально прошёл на Docker 28.0.4/Compose 2.38.2: сборка обоих targets, Caddy HTTPS с проверяемой local CA без verify=false, HttpOnly/Secure cookie, Origin/CSRF, отключённая delivery, сохранение сессии/задачи/очереди после restart DB/API/source/Caddy, реальный encrypted pg_dump/isolated restore с hold/revoked sessions/inactive reminders. Local image content IDs этого run: runtime `sha256:f84179b01d5d90ca107ed14785eb7dd2d36ab8035cd37929b2fcd74fa83f75d6`, backup `sha256:21ba83099e64ce037f937e2da555367d2eeb94264e8b184de0746087a283ea4e`. Images не опубликованы в registry и не развёрнуты на VPS.
+
+Следующий full run проверит patch обновления production Python 3.12.15/PostgreSQL 16.15; успех указанного выше run относится к предыдущим base images. Публичные DNS/ACME, reboot VPS, реальные S3/Telegram остаются Not Run.
+
 Первый фактический Linux run: [38702871815](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38702871815), commit 311fc77. Validation job **success**: Ubuntu 24.04.5, Python 3.12.15, Node 24.21.0, PostgreSQL server 16.10/client 16.15; **294 CRM (56.20s), 133 legacy (3.19s), 14 React, 18 E2E (28.3s)**, build и load прошли. Linux load p95 search/today/create 0.1450/0.2590/0.2221s; старое поле conditions ошибочно называло Windows и исправлено отдельным regression. Среда Linux подтверждена runner metadata, а не этим старым текстом.
 
 Контейнерная job **failure**: runtime/backup images построены, migrations/init owner/init ledger выполнены, при старте Caddy обнаружен конфликт IP allocation. Исправлен production dynamic ip_range, статический Caddy IP исключён из него; доверенный proxy адрес не расширен. Повтор контейнерной проверки ещё ожидается; первый run целиком не зелёный. Локально новые два regression и предыдущие guard tests: **17 passed**. Новая локальная load проверка после metadata fix также прошла, PostgreSQL 16.10, p95 0.1327/0.2057/0.2182s; это отдельное Windows измерение.

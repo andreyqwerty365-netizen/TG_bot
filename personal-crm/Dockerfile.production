@@ -5,7 +5,7 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM python:3.12.10-slim-bookworm AS runtime
+FROM python:3.12.15-slim-bookworm AS runtime
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 COPY requirements.lock pyproject.toml ./

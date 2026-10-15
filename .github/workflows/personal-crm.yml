@@ -24,7 +24,7 @@ jobs:
         working-directory: personal-crm
     services:
       postgres:
-        image: postgres:16.10
+        image: postgres:16.15
         env:
           POSTGRES_USER: crm_test
           POSTGRES_PASSWORD: synthetic-ci-only

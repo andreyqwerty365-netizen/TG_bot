@@ -12,7 +12,8 @@
 
 - [x] (2026-10-15) Подготовлены переносимый browser runner и создание трёх новых isolated CI databases; локально 294 CRM tests/133 legacy/14 React/build и 18 E2E через новый runner прошли. Подготовлены synthetic Docker/HTTPS/restart/restore rehearsal и Linux workflow. Владелец явно разрешил единственное исключение из scope: `.github/workflows/personal-crm.yml`. Действующие боты/Amvera не меняются.
 - [x] (2026-10-15) Workflow опубликован в 311fc77. Первый actual Ubuntu run 38702871815: validation job прошла — 294 CRM/133 legacy/14 React/18 E2E/build/10k load. Контейнерная job собрала images, но выявила конфликт статического Caddy IP с динамическим API allocation; весь run не считается успешным.
-- [ ] (2026-10-15) Повторить контейнерный rehearsal после ограничения dynamic pool 172.30.71.8/29 и исправления метки OS в load report. Два regression test сначала упали, затем прошли; итоговая контейнерная готовность ещё не подтверждена.
+- [x] (2026-10-15) Повторный run 38703604939 на 8aad53a полностью зелёный: 296 CRM/133 legacy/14 React/18 E2E/load и production image/HTTPS/CSRF/session restart/encrypted restore. Caddy allocation исправлен, метка OS показывает Linux.
+- [ ] (2026-10-15) Перед запуском дополнительно проверить production security patch images Python 3.12.15/PostgreSQL 16.15; версии подтверждены первичными release источниками. Обновляются только patch releases внутри прежних major/minor, реальные базы/серверы не затрагиваются.
 
 - [x] (2026-10-14) Проверено чистое дерево, текущая версия `4ae92fd`, фактическая матрица приёмки и конфигурация старого Amvera-приложения.
 - [x] (2026-10-14) Владелец выбрал веб + Telegram, сохранение входа по паролю, новые задачи с последующим переносом, новый домен, Москва/09:00, общий бюджет инфраструктуры до 2 000 ₽/месяц.
@@ -38,6 +39,8 @@ CRM уже реализована на FastAPI/SQLAlchemy/PostgreSQL и React/Ty
 VPS — отдельная виртуальная машина с общими процессором, памятью и диском. Docker Compose запускает проекты в отдельных контейнерах — изолированных окружениях с собственными настройками и хранилищами. HTTPS proxy принимает внешний веб-трафик и направляет его нужному приложению. S3 — отдельное объектное хранилище для файлов копий вне VPS.
 
 ## Decision Log
+
+2026-10-15: после успешного container rehearsal базовые production Python 3.12.10/PostgreSQL 16.10 обновляются до поддерживаемых security patch 3.12.15/16.15 с отдельным полным CI. Источники: https://www.python.org/downloads/release/python-31215/ и https://www.postgresql.org/docs/16/release-16-15.html; official docker-library/python подтверждает 3.12.15 для slim-bookworm. Major версии и схема CRM не меняются. Development исторический compose остаётся отдельным; никаких production volume migrations сейчас нет.
 
 2026-10-15: владелец не запускал облачную передачу и поручил продолжить здесь. Для фактических Linux испытаний разрешил добавить отдельный `.github/workflows/personal-crm.yml`, остальные изменения остаются внутри personal-crm. Workflow только тестирует, не развёртывает и не читает repository secrets. Изолированный Docker rehearsal должен использовать отдельный project, собственные synthetic env/volumes и локальный CA, с cleanup только собственных ресурсов; настоящие DNS/ACME/S3/Telegram не подключаются.
 
