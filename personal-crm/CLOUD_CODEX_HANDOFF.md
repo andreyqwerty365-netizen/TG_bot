@@ -1,5 +1,15 @@
 # Промпт для продолжения CRM в облачном Codex
 
+## Мониторинг и восстановление: актуально 15 октября 2026
+
+Эта секция заменяет прежние статусы об отсутствии alerts/restore drills. Реализация0199f81 и126b755 опубликована и установлена на VPS; документы обновляются отдельным коммитом. Прочитать EXECPLAN_MONITORING.md и docs/MONITORING.md. CRM api/source остаются2419053, backup4232585; checkout не означает обновление этих контейнеров. Старый receiver не перезапускали.
+
+По явному выбору владельца новый @Technical_supp_bot отправляет технические сбои/восстановление. Локальный systemd monitor каждые2мин проверяет8 групп состояния, уведомляет после двух ошибок и после восстановления. В Cronitor бесплатный Hacker Plan: HTTPS /ready каждые5мин и Ops Heartbeat каждые5мин с grace60сек. Владелец явно разрешил передать токен нового бота и ID своего личного чата в свой Cronitor. Default list содержит email и webhook нового бота; старый токен не передавать. Подтверждены внешний HTTP200, живые пинги и доставка alert/recovery обоим получателям в журнале тестового инцидента13:12–13:13UTC. Тест менял только внешний сигнал; VPS/CRM не отключали. Текст внешнего Telegram фиксированный, точная причина/статус в Cronitor; reminder внешнего сбоя каждые8часов.
+
+crm-restore-drill.timer enabled/active, воскресенье04:20 Europe/Moscow, Persistent=true; следующий18октября. Ручной запуск реального systemd job15октября15:49МСК скачал S3 и успешно восстановил CRM PostgreSQL и обе legacy SQLite в отдельном временном стеке; проверил карантин/целостность и удалил стек. Все6 исходных контейнеров сохранили ID/image/start/restarts. Будущий календарный weekly run и reboot не объявлять уже наблюдавшимися. Root-private evidence в /etc/personal-crm/operator/monitoring-0199f81; безопасные reports в /srv/personal-crm/ops-reports и /srv/personal-crm/monitor-state. Токены, chatID, telemetry URL и приватный config не публиковать.
+
+Linux CI38740174166 обе jobs success:362 CRM/133 repository bot/19React/22browser, load targets и production container HTTPS/restart/encrypted restore. Healthchecks не используется: письмо не пришло. Cronitor Hacker подтверждён Billing,2монитора, без счетов; платную подписку не подключали. Следующие продуктовые шаги — пользовательский пилот и только явно разрешённые opt-in интеграции. Почта/ИИ/новая CRM Telegram по-прежнему выключены.
+
 ## Актуальная точка продолжения: 15 октября 2026
 
 Эта секция заменяет устаревшие статусы ниже. Репозиторий `andreyqwerty365-netizen/TG_bot`, ветка `codex/personal-crm-reliability-web`, draft PR #4; merge/force push/master запрещены. Изменения только personal-crm и отдельно разрешённый существующий Linux workflow. Последняя реализация **24190535ec41419fea15a77a8dcd36adaf715c0c** опубликована и фактически работает в CRM api/source на VPS. Последующий коммит обновляет только документы. Прочитать EXECPLAN_DAILY_INPUT.md, EXECPLAN_PILOT.md, EXECPLAN_LEGACY_BACKUP.md, docs/ACCEPTANCE.md, docs/VPS_OPERATIONS.md и docs/LEGACY_BACKUP.md. Историческое требование ниже не полагаться на Windows относится к облачной сессии; текущий локальный workspace может иметь существующие инструменты — выяснять фактически.
