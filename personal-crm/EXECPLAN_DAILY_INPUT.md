@@ -12,8 +12,10 @@ The owner can continue writing in Today while the overview refreshes or fails. A
 - [x] (2026-10-15) Reproduced five failing UI/API regressions before implementation.
 - [x] (2026-10-15) Implement stable capture lifecycle and safe response errors.
 - [x] (2026-10-15) React 19 passed, production build passed; 22 desktop/mobile browser checks passed in 30.6s against a new isolated PostgreSQL application.
-- [ ] Publish changes, verify Linux CI, deploy with recorded image rollback and verify read-only production health.
-- [ ] Update acceptance, user guide and handoff with observed evidence.
+- [x] (2026-10-15) Published implementation 24190535ec41419fea15a77a8dcd36adaf715c0c. Linux run 38733677815 both jobs success: 342 backend, 133 repository bot, 19 React, 22 browser, build/load and container HTTPS/restart/restore.
+- [x] (2026-10-15) Built exact source on VPS, recorded prior images/private configuration and executable rollback, replaced only CRM api/source without migrations. Public ready200, new image confirmed, task/source/history counts and schema unchanged. Legacy/db/Caddy/backup container identities/start times/restarts unchanged.
+- [x] (2026-10-15) Read-only live desktop/mobile checks passed: login, draft preservation on overview refresh/failure/retry, settings/logout, fresh source, verified CRM backup and all integrations disabled. No real task submitted.
+- [x] (2026-10-15) Updated acceptance, user guide, operations and current handoff with observed evidence; documentation-only publication follows the tested implementation.
 
 ## Surprises & Discoveries
 
@@ -47,8 +49,12 @@ Tests only create synthetic records in new `personal_crm_test*` databases. Reque
 
 ## Outcomes & Retrospective
 
-Local implementation and verification passed. The browser tests show a real PostgreSQL task committed before its response is replaced by HTML 502, then a retry produces only one matching task. They also verify retained drafts through failed overview/retry and a working saved-task result link. Linux verification/publication/deployment are pending. Independent alerting, scheduled restore drills, real mail/AI and CRM Telegram remain separate unfinished operational/product work; this iteration does not imply they are enabled.
+Local and Linux verification passed, implementation 2419053 is published and deployed to CRM api/source. The browser tests show a real PostgreSQL task committed before its response is replaced by HTML 502, then a retry produces only one matching task. They also verify retained drafts through failed overview/retry and a working saved-task result link. Live desktop/mobile read-only checks confirmed the deployed behavior with trusted HTTPS and real session authentication, without submitting a task. Independent alerting, scheduled restore drills, real mail/AI and CRM Telegram remain separate unfinished operational/product work; this iteration does not imply they are enabled. Drafts remain in memory only in the open Today section; navigation/reload still discards unsent text, as documented.
+
+The private operator directory `/etc/personal-crm/operator/daily-input-2419053` contains previous deploy.env, sanitized before/after image evidence, build log, before/final record counts and rollback.sh. Runtime api/source now uses the image built from 2419053; CRM backup keeps its earlier verified 4232585 image. No automatic deployment was added. Production CLI Bearer verification was unavailable because this password-only configuration deliberately has no owner token; normal authenticated session GETs confirmed operational status instead.
 
 ## Artifacts and Notes
 
 Initial targeted verification: `npm.cmd test -- src/screens.test.tsx src/api.test.ts`: 5 failed with the expected pre-fix symptoms.
+
+Linux evidence: https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38733677815, source 24190535ec41419fea15a77a8dcd36adaf715c0c. Backend 342 passed in 60.09s (one existing Starlette warning), repository bot 133 passed in 3.59s, React19/build, desktop/mobile22 passed in 38.0s. Container rehearsal: actual Python3.12.15/PostgreSQL16.15/Caddy2.11.7, local-CA HTTPS, session restart, CSRF/origin and encrypted isolated restore passed. ASGI load 10000 tasks/10 clients p95 search/today/create 0.1547/0.2499/0.2478s; excludes public HTTP/TLS/VPS capacity. The archived live bot's separate 151-test runtime was not rebuilt or retested; the 133-test CI set is the repository bot, not that archive.
