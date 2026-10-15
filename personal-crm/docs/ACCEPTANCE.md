@@ -2,7 +2,7 @@
 
 ## Дополнение 2026-10-15: отдельные внешние копии старого бота
 
-По отдельному поручению владельца проверены обе legacy SQLite, вне PostgreSQL и без Telegram polling. L-B01: online backup committed WAL и обеих баз; L-B02: аутентификация, hash/schema/rows/integrity и запрет перезаписи; L-B03: S3 readback, scoped 30-day retention и сохранность прежней копии при ошибке; L-B04: изолированный download/restore; L-B05: readonly WAL wrapper и concurrent lock. Реализация/синтетические проверки — test_legacy_backup.py, процедура и фактический S3 restore — [docs/LEGACY_BACKUP.md](LEGACY_BACKUP.md). Daily timer L-B06 принимается отдельно по systemctl и завершённому service; запуск следующей ночью не подменять ручной проверкой.
+По отдельному поручению владельца проверены обе legacy SQLite, вне PostgreSQL и без Telegram polling. L-B01: online backup committed WAL и обеих баз; L-B02: аутентификация, hash/schema/rows/integrity и запрет перезаписи; L-B03: S3 readback, scoped 30-day retention и сохранность прежней копии при ошибке; L-B04: изолированный download/restore; L-B05: readonly WAL wrapper и concurrent lock. Реализация/синтетические проверки — test_legacy_backup.py, процедура и фактический S3 restore — [docs/LEGACY_BACKUP.md](LEGACY_BACKUP.md). L-B06: timer enabled/active, следующий запуск 16 октября 03:20 MSK; ручной запуск именно systemd service завершился Result=success, ExecMainStatus=0 с verified_remote. Следующий календарный запуск ещё не наблюдался. Linux synthetic suite 16 passed; полный Windows suite с UTF8 и disposable PostgreSQL: 340 passed, 2 skipped (Windows POSIX/symlink).
 
 
 ## Генератор приватной серверной конфигурации, 15 октября 2026

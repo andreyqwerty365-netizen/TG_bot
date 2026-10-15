@@ -8,9 +8,9 @@
 
 - [x] Прочитаны инструкции и существующие криптографический/S3 адаптеры; проверено наличие двух рабочих баз и оплаченного S3.
 - [x] Наблюдать красные тесты, реализовать и проверить архивирование/WAL/изолированное восстановление/ошибки/retention.
-- [ ] Развернуть отдельный job и timer, создать приватный bucket, сохранить отдельный ключ вне VPS.
+- [x] Развернуть отдельный job и timer, создать приватный bucket, сохранить отдельный ключ вне VPS.
 - [x] Выполнить фактический S3 round trip и восстановление обеих баз без запуска второго бота.
-- [ ] Зафиксировать доказательства и опубликовать в текущую GitHub ветку.
+- [x] Зафиксировать доказательства и опубликовать в текущую GitHub ветку.
 
 ## Milestones and validation
 
@@ -30,6 +30,8 @@
 
 ## Outcomes & Retrospective
 
-Реальный S3 upload/readback и отдельное восстановление обеих SQLite прошли, integrity/schema/row fingerprints совпали. Бот healthy/restarts0 и CRM ready200. Приватная отдельная копия ключа вне VPS сохранена владельцу. Установка timer и Git-публикация ещё выполняются.
+Реальный S3 upload/readback и отдельное восстановление обеих SQLite прошли, integrity/schema/row fingerprints совпали. Бот healthy/restarts0 и CRM ready200. Приватная отдельная копия ключа вне VPS сохранена владельцу. Timer enabled/active, следующий запуск 2026-10-16 03:20 MSK. Service реально выполнен 15:01:16–15:01:23 MSK: Result=success, ExecMainStatus=0, verified_remote с двумя базами. Code commit 06ac241 опубликован и синхронизирован на VPS. Полный Windows suite с PYTHONUTF8=1: 340 passed, 2 skipped (POSIX permissions/symlink); отдельный Linux suite UID10001 без сети: 16 passed. Анонимный HEAD реального S3 объекта вернул 403. Следующий календарный запуск и reboot timer ещё не наблюдались; независимые alerts/регулярный restore остаются будущими улучшениями.
 
 2026-10-15: первоначальный read-only mount дал SQLITE_CANTOPEN для idle WAL notes.db без sidecars. Автоматическая проверка отклонила writable source mount как риск повреждения. Реализован более безопасный вариант: малый host wrapper держит только mode=ro/query_only соединения, network-контейнер получает строго read-only source. Реальный backup/restore этим вариантом прошёл. Windows выявил незакрытые SQLite handles: context manager транзакции не закрывает connection; применён contextlib.closing. Linux тесты повторяются также от UID10001, поскольку первый root-only прогон не обнаружил права скопированного пакета.
+
+Полный Windows suite первоначально дал 339 passed и один UnicodeDecodeError в существующем test_stage2_corpus из-за CP1251 default encoding. Повтор всего набора с PYTHONUTF8=1 и -X utf8 прошёл 340 passed, 2 skipped за 105.59s; корпус и продуктовый код не менялись. Изменения ограничены personal-crm; секреты не опубликованы.
