@@ -59,6 +59,8 @@ VPS — отдельная виртуальная машина с общими �
 
 ## Surprises & Discoveries
 
+2026-10-15: первый run нового setup 38707511128 на 3a3b536 остановил container job до сборки: новая общая функция импортируется из personal_crm, а этот job устанавливал только dependencies. Добавлен такой же editable install, как в validation job. Локальный venv уже содержал пакет, поэтому локальные tests этого расхождения не выявили. Первый run не считается успешным; нужен новый полный Linux run.
+
 2026-10-15: malformed database URL выбрасывает SQLAlchemy ArgumentError, а не ValueError. Отдельный red/green regression подтвердил безопасную обработку CLI без traceback/приватного значения. Генератор не перезаписывает даже пустую существующую директорию: это предотвращает неявную смену DB password/backup key; незавершённая запись остаётся для приватной операторской проверки.
 
 2026-10-15: первый Linux container run дошёл до запуска production services и завершился `Address already in use`: без отдельного ip_range Docker мог выдать API адрес 172.30.71.2 до старта Caddy. Статический адрес Caddy теперь исключён из динамического пула; trust Uvicorn остаётся строго 172.30.71.2. Отдельный regression проверяет subnet/pool/static и соответствие Dockerfile. Первый Linux load также выявил старую hardcoded метку Windows; теперь OS определяется фактически, а версия PostgreSQL читается с сервера. Первый run URL: https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38702871815 (validation success, containers failure).
