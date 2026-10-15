@@ -1,0 +1,11 @@
+[Unit]
+Description=CRM and legacy backup health with technical notifications
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/personal-crm/repository/personal-crm
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/personal-crm/repository/personal-crm/deploy/ops_monitor.py
+TimeoutStartSec=4min

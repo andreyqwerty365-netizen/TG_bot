@@ -1,9 +1,11 @@
 import hmac
+import logging
 from datetime import date
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from pydantic import Field
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,7 +26,7 @@ class Intake(Incoming):
 
 class Command(Strict):
     version: int = Field(gt=0)
-    action: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus"]
+    action: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus", "start", "activate"]
     at: str | None = None
     deadline: Deadline | None = None
     title: str | None = Field(default=None, min_length=1, max_length=2000)
@@ -38,26 +40,63 @@ class Confirmation(Strict):
     accept: bool = True
 
 
-def create_app(settings=None, interpreter=None):
+class AccessPrivacyFilter(logging.Filter):
+    def filter(self, record):
+        # Uvicorn's access tuple contains the raw URL, including typed task searches.
+        if isinstance(record.args, tuple) and len(record.args) == 5 and isinstance(record.args[2], str):
+            values = list(record.args)
+            values[2] = values[2].split("?", 1)[0]
+            record.args = tuple(values)
+        return True
+
+
+def create_app(settings=None, interpreter=None, mail_provider=None):
     settings = settings or Settings.from_env()
+    if settings.environment == 'production':
+        if not settings.owner_id or not settings.web_auth.valid(settings.environment):
+            raise ValueError('production_web_auth_required')
+        if mail_provider is not None and not (settings.mail.enabled and settings.mail.consent):
+            raise ValueError('production_synthetic_provider_forbidden')
     factory = sessions(settings.database_url)
-    interpreter = interpreter or ContextInterpreter(ResponsesAdapter(factory, settings.ai), FixtureInterpreter.from_file("fixtures/demo.json"))
+    interpreter = interpreter or ContextInterpreter(ResponsesAdapter(factory, settings.ai),
+        FixtureInterpreter() if settings.environment == 'production' else FixtureInterpreter.from_file('fixtures/demo.json'))
     service = CRMService(factory, interpreter)
-    app = FastAPI(title="Personal CRM — fake adapters", version="0.1.0")
+    app = FastAPI(title="Personal CRM",version="0.3.0",docs_url=None if settings.environment=='production' else '/docs',
+                  redoc_url=None if settings.environment=='production' else '/redoc',
+                  openapi_url=None if settings.environment=='production' else '/openapi.json')
     app.state.service = service
 
-    def actor(authorization: str | None = Header(default=None)):
-        if not settings.owner_id or not settings.owner_token:
-            raise HTTPException(503, "owner_not_configured")
-        expected = f"Bearer {settings.owner_token}"
-        if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
-            raise HTTPException(401, "unauthorized")
-        service.register(settings.owner_id, settings.timezone)
-        return settings.owner_id
+    @app.exception_handler(RequestValidationError)
+    async def safe_validation(request: Request,error: RequestValidationError):
+        return JSONResponse({'detail':[{'loc':e['loc'],'type':e['type'],'msg':e['msg']} for e in error.errors()]},status_code=422)
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(item, AccessPrivacyFilter) for item in access_logger.filters):
+        access_logger.addFilter(AccessPrivacyFilter())
+
+    @app.middleware("http")
+    async def browser_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        if request.url.path not in ("/docs", "/redoc", "/openapi.json"):
+            response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        if request.headers.get("authorization") or request.headers.get('cookie') or request.url.path.startswith('/auth/'):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    from .web_auth import install_auth
+    actor = install_auth(app,service,settings)
 
     @app.exception_handler(CRMError)
     async def crm_error(request: Request, error: CRMError):
         return JSONResponse({"detail": error.code}, status_code=error.status)
+
+    from .mail import MailError
+
+    @app.exception_handler(MailError)
+    async def mail_error(request: Request, error: MailError):
+        return JSONResponse({"detail": error.code}, status_code=409)
 
     @app.exception_handler(SQLAlchemyError)
     async def db_error(request: Request, error):
@@ -65,16 +104,34 @@ def create_app(settings=None, interpreter=None):
 
     @app.get("/health")
     def health():
-        return {"status": "alive", "adapters": "fake"}
+        return {"status": "alive", "mail_enabled": settings.mail.enabled and settings.mail.consent}
+
+    from .mail_api import install_mail
+    install_mail(app, settings, service, actor, mail_provider)
 
     @app.get("/ready")
     def ready():
-        if not settings.owner_id or not settings.owner_token:
+        if not settings.owner_id or not (settings.owner_token or settings.web_auth.password_hash):
             raise HTTPException(503, "owner_not_configured")
         with factory() as s:
-            s.execute(text("SELECT 1 FROM alembic_version"))
+            from .recovery import SCHEMA
+            if s.scalar(text('SELECT version_num FROM alembic_version'))!=SCHEMA:
+                raise HTTPException(503,'schema_not_ready')
             s.execute(select(Profile).limit(1))
-        return {"status": "ready", "adapters": "fake"}
+            profile=s.get(Profile,settings.owner_id)
+            if profile and profile.recovery_hold:
+                raise HTTPException(503,'recovery_hold')
+        if settings.environment=='production':
+            from .operations import overview
+            from .recovery import BackupConfig
+            view=overview(factory,settings.owner_id,now=service.clock(),delivery_enabled=settings.telegram.send_enabled,
+                          backup_enabled=BackupConfig.from_env().enabled)
+            required=['source']+(['delivery'] if settings.telegram.send_enabled else [])+(['backup'] if BackupConfig.from_env().enabled else [])
+            if any(view['workers'][role]['status'] not in ('running','idle') for role in required):
+                raise HTTPException(503,'workers_not_ready')
+            if view['workers']['source']['status']=='disabled' or view['backup']['status'] in ('missing','overdue'):
+                raise HTTPException(503,'workers_not_ready')
+        return {'status':'ready'}
 
     @app.post("/sources")
     def intake(body: Intake, owner=Depends(actor)):
@@ -91,7 +148,7 @@ def create_app(settings=None, interpreter=None):
         ingress.authenticate_webhook(x_telegram_bot_api_secret_token)
         if not settings.owner_id or not settings.owner_token:
             raise HTTPException(503, "owner_not_configured")
-        service.register(settings.owner_id, settings.timezone)
+        service.register(settings.owner_id, settings.timezone, initialize_only=True)
         return ingress.accept(payload)
 
     @app.get("/ai/status")
@@ -106,7 +163,7 @@ def create_app(settings=None, interpreter=None):
             raise HTTPException(503, "connector_not_configured")
         if not x_connector_token or not hmac.compare_digest(x_connector_token.encode(), settings.mail_token.encode()):
             raise HTTPException(401, "unauthorized")
-        service.register(settings.owner_id, settings.timezone)
+        service.register(settings.owner_id, settings.timezone, initialize_only=True)
         version_id = service.ingest(settings.owner_id, "mail", body)
         return service.process(settings.owner_id, version_id)
 
@@ -176,4 +233,10 @@ def create_app(settings=None, interpreter=None):
     def confirm(proposal_id: str, body: Confirmation, owner=Depends(actor)):
         return service.confirm(owner, proposal_id, body.version, body.accept)
 
+    from .workspace_api import install_workspace
+    install_workspace(app, service, settings, actor)
+    from .planning_api import install_planning
+    install_planning(app, service, actor)
+    from .suggestions import install_suggestions
+    install_suggestions(app, service, actor, settings.planning)
     return app

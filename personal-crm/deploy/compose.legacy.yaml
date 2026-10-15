@@ -1,0 +1,44 @@
+# Standalone, opt-in migration of the existing reminders/training bot.
+# Never combine with the CRM compose file. Compose >=2.30 is required.
+name: legacy-reminder-bot
+services:
+  bot:
+    profiles: [migration]
+    image: ${LEGACY_IMAGE:?Set the inspected immutable local bot image ID}
+    user: "10001:10001"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 384m
+    cpus: 0.5
+    env_file:
+      - {path: "${LEGACY_CONFIG_DIRECTORY:?Set the private directory}/bot.env", format: raw}
+    environment:
+      BOT_DB_PATH: /data/notes.db
+      BOT_TRAINER_DB_PATH: /data/workouts.sqlite3
+      BOT_EXERCISES_PATH: /app/exercises.json
+      BOT_LOG_PATH: /data/logs/bot.log
+      BOT_INTERACTION_LOG_PATH: /data/logs/interactions.log
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - >-
+        test "$${LEGACY_CUTOVER_CONFIRMED:-false}" = true ||
+        { echo 'cutover_not_confirmed'; exit 1; };
+        test -n "$${BOT_TOKEN:-}" ||
+        { echo 'bot_token_missing'; exit 1; };
+        test -n "$${BOT_ALLOWED_USER_IDS:-}" ||
+        { echo 'owner_allowlist_required'; exit 1; };
+        test -s /data/notes.db && test -s /data/workouts.sqlite3 ||
+        { echo 'verified_databases_required'; exit 1; };
+        exec python main.py
+    volumes:
+      - ${LEGACY_DATA_DIRECTORY:?Set the private verified data directory}:/data
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+networks:
+  default:
+    enable_ipv6: ${LEGACY_ENABLE_IPV6:-false}

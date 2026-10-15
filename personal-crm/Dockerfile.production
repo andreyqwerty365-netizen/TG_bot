@@ -1,0 +1,31 @@
+FROM node:22-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
+FROM python:3.12.15-slim-bookworm AS runtime
+WORKDIR /app
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+COPY requirements.lock pyproject.toml ./
+RUN pip install --no-cache-dir -r requirements.lock
+COPY src ./src
+COPY migrations ./migrations
+COPY alembic.ini ./
+COPY --from=web /web/dist ./web/dist
+RUN pip install --no-cache-dir --no-deps --no-build-isolation . \
+    && useradd --uid 10002 --create-home crm && chmod -R a+rX /app
+USER crm
+CMD ["uvicorn", "personal_crm.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "172.30.71.2", "--no-access-log"]
+
+FROM runtime AS backup
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && printf '%s\n' 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main' > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 \
+    && rm -rf /var/lib/apt/lists/*
+USER crm
+CMD ["python", "-m", "personal_crm.remote_backup"]

@@ -25,13 +25,13 @@ class Worker:
     def claim(self):
         now = self.clock()
         with self.factory.begin() as s:
-            eligible = select(Job).where(
+            eligible = select(Job).join(Profile, Profile.id == Job.owner_id).where(Profile.recovery_hold.is_(False),
                 or_(and_(Job.status == "pending", Job.run_at <= now),
                     and_(Job.status == "leased", Job.lease_until <= now))
             )
             if self.owner_id:
                 eligible = eligible.where(Job.owner_id == self.owner_id)
-            job = s.scalar(eligible.order_by(Job.run_at, Job.id).with_for_update(skip_locked=True).limit(1))
+            job = s.scalar(eligible.order_by(Job.run_at, Job.id).with_for_update(of=Job, skip_locked=True).limit(1))
             if not job:
                 return None
             pending = s.scalars(select(Attempt).where(Attempt.job_id == job.id, Attempt.outcome == "pending")).all()
@@ -54,6 +54,8 @@ class Worker:
             return None
         # All state-changing commands and deliveries use the same owner lock order.
         profile = s.scalar(select(Profile).where(Profile.id == identity.owner_id).with_for_update())
+        if profile.recovery_hold:
+            return None
         reconcile_uncertain_guidance(s, profile)
         reminder = task = None
         if identity.reminder_id:
@@ -202,16 +204,29 @@ def main():
     parser.add_argument("--no-digest", action="store_true")
     args = parser.parse_args()
     settings = Settings.from_env()
+    if settings.environment == 'production' and not settings.telegram.send_enabled:
+        print('Telegram worker outcome=disabled',flush=True)
+        return
     from .telegram import TelegramTransport
     transport = TelegramTransport(settings.telegram, settings.owner_id) if settings.telegram.send_enabled else FakeTransport()
     worker = Worker(sessions(settings.database_url), transport,
                     owner_id=args.owner or (settings.owner_id if settings.telegram.send_enabled else None))
+    from .operations import record
+    last_heartbeat=-30
     while True:
         try:
+            if worker.owner_id and time.monotonic()-last_heartbeat>=30:
+                record(worker.factory,worker.owner_id,'delivery','running')
+                last_heartbeat=time.monotonic()
             result = worker.tick(digest=not args.no_digest)
         except SQLAlchemyError:
             # Do not print exception diagnostics: connection strings may contain secrets.
             result = "database_unavailable"
+            if worker.owner_id:
+                try:
+                    record(worker.factory,worker.owner_id,'delivery','error',error_code='delivery_unavailable')
+                except SQLAlchemyError:
+                    pass
         channel = "test Telegram" if settings.telegram.send_enabled else "fake"
         print(f"{channel} worker outcome={result}", flush=True)
         if args.once:

@@ -11,7 +11,7 @@ def short_reply(result):
     if status == "proposal":
         proposed = result.get("proposal", {})
         action = {"close": "выполнить", "reminder": "изменить напоминание", "plan": "изменить план",
-                  "deadline": "изменить дедлайн", "title": "изменить название"}.get(proposed.get("change"), "создать дело")
+                  "deadline": "изменить дедлайн", "title": "изменить название", "edit": "изменить название и напоминание"}.get(proposed.get("change"), "создать дело")
         details = result.get("target_title", "")[:180]
         if proposed.get("reminder_at"):
             details += "; напоминание " + proposed["reminder_at"]
@@ -24,7 +24,7 @@ def short_reply(result):
             details += "; вернуться " + proposed["return_on"]
         if proposed.get("focused") is not None:
             details += "; фокус " + ("да" if proposed["focused"] else "нет")
-        if proposed.get("change") == "title":
+        if proposed.get("change") in ("title", "edit"):
             details += "; новое название " + proposed.get("title", "")[:180]
         if proposed.get("change") in ("defer", "resume", "cancel", "focus"):
             action = {"defer": "отложить дело", "resume": "вернуть дело", "cancel": "отменить дело", "focus": "изменить фокус"}[proposed["change"]]

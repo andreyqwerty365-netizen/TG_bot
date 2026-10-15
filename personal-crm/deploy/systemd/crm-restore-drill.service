@@ -1,0 +1,13 @@
+[Unit]
+Description=Isolated restore of CRM PostgreSQL and both legacy SQLite backups from S3
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/personal-crm/repository/personal-crm
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/personal-crm/repository/personal-crm/deploy/restore_drill_job.py
+TimeoutStartSec=14min
+KillMode=process

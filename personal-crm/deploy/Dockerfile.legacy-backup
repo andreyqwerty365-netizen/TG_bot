@@ -1,0 +1,10 @@
+# Build with a local CRM backup tag whose image ID was inspected; no bot runtime needed.
+ARG LEGACY_BACKUP_BASE
+FROM ${LEGACY_BACKUP_BASE}
+USER root
+COPY src /opt/legacy-backup/src
+RUN chmod -R a+rX /opt/legacy-backup
+ENV PYTHONPATH=/opt/legacy-backup/src
+USER 10001:10001
+ENTRYPOINT ["python", "-m", "personal_crm.legacy_backup"]
+CMD ["backup"]

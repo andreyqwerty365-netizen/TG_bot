@@ -8,6 +8,7 @@ COPY src ./src
 COPY migrations ./migrations
 COPY alembic.ini ./
 COPY fixtures ./fixtures
+COPY web/dist ./web/dist
 RUN pip install --no-cache-dir --no-deps --no-build-isolation . \
     && chmod -R a+rX /app \
     && useradd --uid 10002 --create-home crm

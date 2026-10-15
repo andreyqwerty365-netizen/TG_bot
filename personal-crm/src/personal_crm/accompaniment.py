@@ -4,7 +4,7 @@ import json
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import exists, or_, select, update
+from sqlalchemy import Date, and_, cast, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from .models import Attempt, Guidance, History, Job, Profile, Proposal, Reminder, Task, uid
@@ -24,6 +24,8 @@ def overdue(deadline, now):
 
 
 def task_visible(task, profile, now):
+    if task.recurrence_id and task.occurrence_on and now.astimezone(ZoneInfo(task.occurrence_timezone)).date() < task.occurrence_on:
+        return False
     if task.state in ("active", "in_progress"):
         return True
     return (task.state == "deferred" and task.return_on is not None and profile.timezone is not None
@@ -150,6 +152,8 @@ def prepare(factory, now, owner_id=None, digest=False):
     for identity in owners:
         with factory.begin() as s:
             profile = s.scalar(select(Profile).where(Profile.id == identity).with_for_update())
+            if profile.recovery_hold:
+                continue
             recover_pending_attempts(s, profile, now)
             reconcile_uncertain_guidance(s, profile)
             if profile.timezone:
@@ -182,8 +186,21 @@ def overview(s, profile, now, ignore_attempt=None):
     from .service import snapshot
     zone = ZoneInfo(profile.timezone) if profile.timezone else None
     today = now.astimezone(zone).date() if zone else None
-    tasks = [t for t in s.scalars(select(Task).where(Task.owner_id == profile.id,
-             Task.kind.in_(["task", "waiting"]))) if task_visible(t, profile, now)]
+    visible=select(Task).where(Task.owner_id==profile.id,Task.kind.in_(['task','waiting']),
+        or_(Task.state.in_(['active','in_progress']),and_(Task.state=='deferred',Task.return_on<=today) if today else False),
+        or_(Task.recurrence_id.is_(None),Task.occurrence_on.is_(None),
+            Task.occurrence_on<=cast(func.timezone(Task.occurrence_timezone,now),Date)))
+    total=s.scalar(select(func.count()).select_from(visible.subquery()))
+    has_deadline=Task.deadline['precision'].as_string().is_not(None)
+    # The overview needs every dated/waiting task, but only two undated backlog candidates.
+    # Count the rest in PostgreSQL instead of materializing the complete owner's backlog.
+    tasks=list(s.scalars(visible.where(or_(has_deadline,Task.kind=='waiting',Task.focused.is_(True),
+        Task.planned_on==today if today else False))))
+    forgotten=list(s.scalars(visible.where(Task.kind=='task',~has_deadline).order_by(
+        func.greatest(func.coalesce(Task.last_presented_at,Task.created_at),
+                      func.coalesce(Task.last_discussed_at,Task.created_at)),Task.created_at,Task.id).limit(2)))
+    selected={t.id for t in tasks}
+    tasks.extend(t for t in forgotten if t.id not in selected)
     by_id = {t.id: t for t in tasks}
 
     def deadline_order(task):
@@ -193,8 +210,6 @@ def overview(s, profile, now, ignore_attempt=None):
         return value
 
     dated = sorted([t for t in tasks if t.deadline], key=lambda t: (deadline_order(t), t.id))
-    forgotten = sorted([t for t in tasks if t.kind == "task" and not t.deadline], key=lambda t: (
-        max(t.last_presented_at or t.created_at, t.last_discussed_at or t.created_at), t.created_at, t.id))[:2]
     focused = sorted([t for t in tasks if t.focused], key=lambda t: (t.created_at, t.id))
     planned = sorted([t for t in tasks if today and t.planned_on == today], key=lambda t: (t.created_at, t.id))
     main = []
@@ -218,17 +233,19 @@ def overview(s, profile, now, ignore_attempt=None):
                 missed.extend(missed_items(s, guide))
     return {
         "timezone": profile.timezone, "needs_timezone": zone is None,
+        "planning_suggestions": planning_view(s, profile, now),
+        "sync_errors": mail_sync_errors(s, profile.id),
         "main": [snapshot(by_id[identity]) for identity in main],
         "deadlines": [{**snapshot(t), "overdue": overdue(t.deadline, now)} for t in dated],
         "forgotten": [snapshot(t) for t in forgotten],
         "waiting": [snapshot(t) for t in tasks if t.kind == "waiting"],
         "proposals": [{"id": p.id, "version": p.version, "payload": p.payload} for p in proposals],
-        "guidance": guides, "missed_reminders": missed, "other_count": len(tasks) - len(main),
+        "guidance": guides, "missed_reminders": missed, "other_count": total - len(main),
     }
 
 
 def render_overview(view):
-    if not any(view[key] for key in ("main", "deadlines", "forgotten", "waiting", "proposals", "guidance")):
+    if not any(view.get(key) for key in ("main", "deadlines", "forgotten", "waiting", "proposals", "guidance", "sync_errors", "planning_suggestions")):
         return None
     sections = []
     if view["main"]:
@@ -245,9 +262,26 @@ def render_overview(view):
         sections.append(f"Ожиданий: {len(view['waiting'])}")
     if view["proposals"]:
         sections.append(f"Предложений для решения: {len(view['proposals'])}")
+    if view.get("planning_suggestions"):
+        sections.append(f"Предложений следующего шага и плана: {len(view['planning_suggestions'])}. Применяются после подтверждения в вебе.")
+    sections.extend(error["message"] for error in view.get("sync_errors", []))
     sections.extend(g["message"] for g in view["guidance"])
     sections.append(f"Других дел: {view['other_count']}. Полный список доступен в обзоре.")
     return "\n".join(sections)
+
+
+def mail_sync_errors(s, owner):
+    from .models import MailAccount
+    account = s.get(MailAccount, owner)
+    if not account or not account.enabled or not account.error_code:
+        return []
+    message = "Почта: доступ отклонён, синхронизация остановлена. Проверьте подключение в настройках." if account.status == "auth_error" else "Почта: синхронизация задержана. Сохранённые предложения доступны; состояние в настройках."
+    return [{"code": account.error_code, "message": message}]
+
+
+def planning_view(s, profile, now):
+    from .suggestions import pending
+    return pending(s, profile, now)
 
 
 def record_presentation(s, view, now, outcome):

@@ -1,0 +1,64 @@
+# Separate disposable project: no production networks, volumes or database credentials.
+services:
+  restore-db:
+    image: postgres:16.15
+    user: "999:999"
+    restart: "no"
+    environment:
+      POSTGRES_USER: drill
+      POSTGRES_DB: personal_crm_restore_drill
+      POSTGRES_PASSWORD: ${OPS_DRILL_PASSWORD:?Set a per-run disposable password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    tmpfs: ["/var/lib/postgresql/data:size=768m,mode=0700,uid=999,gid=999"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 768m
+    cpus: 0.5
+    networks: [restore]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U drill -d personal_crm_restore_drill"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    logging: {driver: json-file, options: {max-size: "2m", max-file: "2"}}
+  verifier:
+    image: ${OPS_IMAGE:?Set the inspected immutable ops image}
+    user: "10001:10001"
+    restart: "no"
+    read_only: true
+    init: true
+    tmpfs: ["/tmp:size=192m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    cpus: 0.5
+    env_file:
+      - {path: "${OPS_PRIVATE_RUN:?Set root-private per-run folder}/drill.env", format: raw}
+      - {path: "${CRM_CONFIG_DIRECTORY:?Set private CRM configuration}/backup.env", format: raw}
+      - {path: "${LEGACY_BACKUP_CONFIG_DIRECTORY:?Set private legacy configuration}/backup.env", format: raw}
+    environment:
+      OPS_RESTORE_CONFIRMED: "true"
+      CRM_PG_BIN: /usr/lib/postgresql/16/bin
+      LEGACY_BACKUP_KEY_FILE: /run/secrets/legacy-key
+      OPS_RESTORE_REPORT: /reports/restore-last-run.json
+      CRM_OPENAI_ENABLED: "false"
+      CRM_MAIL_ENABLED: "false"
+      CRM_TELEGRAM_SEND_ENABLED: "false"
+      CRM_TELEGRAM_WEBHOOK_ENABLED: "false"
+    volumes:
+      - type: bind
+        source: ${LEGACY_BACKUP_CONFIG_DIRECTORY}/recovery-key.txt
+        target: /run/secrets/legacy-key
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${OPS_REPORT_DIRECTORY:?Set private safe report directory}
+        target: /reports
+        bind: {create_host_path: false}
+    depends_on:
+      restore-db: {condition: service_healthy}
+    networks: [restore, outbound]
+    logging: {driver: json-file, options: {max-size: "2m", max-file: "2"}}
+networks:
+  restore: {internal: true}
+  outbound: {}

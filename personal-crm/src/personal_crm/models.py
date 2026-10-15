@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from sqlalchemy import (
     BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer,
-    JSON, String, Text, UniqueConstraint,
+    JSON, String, Text, UniqueConstraint, event, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -24,6 +24,11 @@ class Profile(Base):
     __tablename__ = "profiles"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     timezone: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    ai_paused: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    recovery_hold: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    ai_budget_cap_micro_usd: Mapped[int | None] = mapped_column(BigInteger)
+    preferred_reminder_time: Mapped[str | None] = mapped_column(String(5))
     digest_hour: Mapped[int] = mapped_column(default=12)
     initiative_limit: Mapped[int] = mapped_column(default=2)
     catchup_grace_seconds: Mapped[int] = mapped_column(default=3600, server_default="3600")
@@ -32,6 +37,37 @@ class Profile(Base):
         CheckConstraint("initiative_limit BETWEEN 0 AND 2"),
         CheckConstraint("catchup_grace_seconds >= 0", name="ck_catchup_grace"),
     )
+
+
+class WebSession(Base):
+    __tablename__ = 'web_sessions'
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey('profiles.id'), index=True)
+    credential_version: Mapped[str] = mapped_column(String(64))
+    csrf_token: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+
+
+class LoginThrottle(Base):
+    __tablename__ = 'login_throttles'
+    bucket_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey('profiles.id'), index=True)
+    window_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class WorkerStatus(Base):
+    __tablename__ = 'worker_status'
+    owner_id: Mapped[str] = mapped_column(ForeignKey('profiles.id'),primary_key=True)
+    role: Mapped[str] = mapped_column(String(16),primary_key=True)
+    state: Mapped[str] = mapped_column(String(16))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(32))
+    __table_args__=(CheckConstraint("role IN ('source','delivery','backup')",name='ck_worker_role'),
+                   CheckConstraint("state IN ('running','idle','disabled','error')",name='ck_worker_state'))
 
 
 class Source(Base):
@@ -47,6 +83,43 @@ class Source(Base):
     )
 
 
+class MailAccount(Base):
+    __tablename__ = "mail_accounts"
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    account_key: Mapped[str] = mapped_column(String(64))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(16), default="idle")
+    cursor: Mapped[dict | None] = mapped_column(JSON)
+    lease_token: Mapped[str | None] = mapped_column(String(36))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(32))
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    saved_count: Mapped[int] = mapped_column(Integer, default=0)
+    reset_count: Mapped[int] = mapped_column(Integer, default=0)
+    __table_args__ = (CheckConstraint("status IN ('disabled','idle','syncing','backoff','auth_error','error')"),)
+
+
+class MailMessage(Base):
+    __tablename__ = "mail_messages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("mail_accounts.owner_id"), index=True)
+    key: Mapped[str] = mapped_column(String(64))
+    thread_id: Mapped[str] = mapped_column(String(64), index=True)
+    message_id: Mapped[str] = mapped_column(String(1000))
+    source_id: Mapped[str] = mapped_column(ForeignKey("sources.id"), index=True)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    # A remote pointer is bookkeeping, not a credential or permission to mutate mail.
+    pointer: Mapped[dict | None] = mapped_column(JSON)
+    flags: Mapped[list] = mapped_column(JSON, default=list)
+    removed: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (UniqueConstraint("owner_id", "key"),)
+
+
 class SourceVersion(Base):
     __tablename__ = "source_versions"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
@@ -58,6 +131,8 @@ class SourceVersion(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     error_code: Mapped[str | None] = mapped_column(String(32))
     parse_token: Mapped[str | None] = mapped_column(String(36))
+    parse_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     parse_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     result: Mapped[dict | None] = mapped_column(JSON)
     channel_metadata: Mapped[dict | None] = mapped_column(JSON)
@@ -68,12 +143,85 @@ class SourceVersion(Base):
     )
 
 
+class Project(Base):
+    __tablename__ = "projects"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Recurrence(Base):
+    __tablename__ = "recurrences"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    frequency: Mapped[str] = mapped_column(String(16))
+    interval: Mapped[int] = mapped_column(Integer)
+    anchor_on: Mapped[date] = mapped_column(Date)
+    timezone: Mapped[str] = mapped_column(String(64))
+    reminder_time: Mapped[str | None] = mapped_column(String(5))
+    template: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (
+        CheckConstraint("frequency IN ('daily','weekly','monthly')", name="ck_recurrence_frequency"),
+        CheckConstraint("interval BETWEEN 1 AND 365", name="ck_recurrence_interval"),
+        CheckConstraint("status IN ('active','stopped')", name="ck_recurrence_status"),
+    )
+
+
+class RecurrenceHistory(Base):
+    __tablename__ = "recurrence_history"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    recurrence_id: Mapped[str] = mapped_column(ForeignKey("recurrences.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    before: Mapped[dict | None] = mapped_column(JSON)
+    after: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (UniqueConstraint("recurrence_id", "version"),)
+
+
+class PlanningSuggestion(Base):
+    __tablename__ = "planning_suggestions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), index=True)
+    task_version: Mapped[int | None] = mapped_column(Integer)
+    profile_version: Mapped[int | None] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16))
+    event_key: Mapped[str] = mapped_column(String(128))
+    payload: Mapped[dict] = mapped_column(JSON)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (
+        UniqueConstraint("owner_id", "event_key"),
+        CheckConstraint("kind IN ('early','step','reminder_time')", name="ck_planning_kind"),
+        CheckConstraint("status IN ('pending','accepted','dismissed','stale')", name="ck_planning_status"),
+    )
+
+
 class Task(Base):
     __tablename__ = "tasks"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     owner_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    recurrence_id: Mapped[str | None] = mapped_column(ForeignKey("recurrences.id"), index=True)
+    occurrence_on: Mapped[date | None] = mapped_column(Date)
+    occurrence_timezone: Mapped[str | None] = mapped_column(String(64))
+    recurrence_warning: Mapped[str | None] = mapped_column(String(32))
+    parent_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), index=True)
+    step_batch: Mapped[int | None] = mapped_column(Integer)
+    step_index: Mapped[int | None] = mapped_column(Integer)
+    steps_revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    promoted_steps_revision: Mapped[int | None] = mapped_column(Integer)
     source_version_id: Mapped[str] = mapped_column(ForeignKey("source_versions.id"), unique=True)
     title: Mapped[str] = mapped_column(Text)
+    title_search: Mapped[str] = mapped_column(Text, default="", server_default="")
     kind: Mapped[str] = mapped_column(String(16), default="task")
     state: Mapped[str] = mapped_column(String(16), default="active")
     version: Mapped[int] = mapped_column(default=1)
@@ -93,7 +241,17 @@ class Task(Base):
         CheckConstraint("state IN ('active','in_progress','deferred','done','cancelled')"),
         CheckConstraint("version > 0"),
         CheckConstraint("plan_postponements >= 0 AND obstacle_at_count >= 0", name="ck_postponement_counts"),
+        UniqueConstraint("recurrence_id", "occurrence_on", name="uq_recurrence_occurrence"),
+        UniqueConstraint("parent_task_id", "step_batch", "step_index", name="uq_plan_child"),
+        Index("uq_recurrence_open", "recurrence_id", unique=True,
+              postgresql_where=text("recurrence_id IS NOT NULL AND state IN ('active','in_progress','deferred')")),
     )
+
+
+@event.listens_for(Task, "before_insert")
+@event.listens_for(Task, "before_update")
+def normalize_task_title(mapper, connection, task):
+    task.title_search = task.title.casefold()
 
 
 class Proposal(Base):

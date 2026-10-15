@@ -1,0 +1,39 @@
+name: legacy-data-backup
+services:
+  backup:
+    image: ${LEGACY_BACKUP_IMAGE:?Set the inspected immutable backup image ID}
+    user: "10001:10001"
+    restart: "no"
+    init: true
+    read_only: true
+    tmpfs: ["/tmp:size=192m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    cpus: 0.5
+    env_file:
+      - {path: "${LEGACY_BACKUP_CONFIG_DIRECTORY:?Set the private config directory}/backup.env", format: raw}
+    environment:
+      LEGACY_SOURCE_DIRECTORY: /source
+      LEGACY_BACKUP_DIRECTORY: /backups
+      LEGACY_BACKUP_KEY_FILE: /run/secrets/legacy-backup-key
+    volumes:
+      - type: bind
+        source: ${LEGACY_DATA_DIRECTORY:?Set the existing bot data directory}
+        target: /source
+        # legacy_backup_job.py holds read-only SQLite connections so WAL/SHM
+        # metadata exists before mounting an idle WAL database read-only here.
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${LEGACY_BACKUP_DIRECTORY:?Set the private encrypted archive directory}
+        target: /backups
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${LEGACY_BACKUP_CONFIG_DIRECTORY}/recovery-key.txt
+        target: /run/secrets/legacy-backup-key
+        read_only: true
+        bind: {create_host_path: false}
+    logging:
+      driver: json-file
+      options: {max-size: "2m", max-file: "3"}

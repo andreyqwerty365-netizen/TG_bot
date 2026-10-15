@@ -1,0 +1,8 @@
+# ONLY with scripts/container_checks.py and its generated synthetic configuration.
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:${CRM_CI_HTTP_PORT}:80"
+      - "127.0.0.1:${CRM_CI_HTTPS_PORT}:443"
+    volumes:
+      - ./deploy/ci/Caddyfile:/etc/caddy/Caddyfile:ro

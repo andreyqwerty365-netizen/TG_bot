@@ -1,5 +1,181 @@
 # Приёмка Personal CRM
 
+## Ежедневный ввод при сбоях связи, 15 октября 2026
+
+Исправлен демонтаж QuickCapture при обновлении/ошибке обзора: несохранённый текст, уточнение, request ID и ссылка на сохранённое дело остаются в открытом «Сегодня». Ошибка обзора имеет отдельный повтор. HTML/оборванный HTTP-ответ переводится в безопасное сообщение с неизвестным результатом записи; unreadable 401 отзывает клиентский вход. R01/R05 и требование подтверждать только committed результат проверены новыми `web/src/screens.test.tsx`, `web/src/api.test.ts` и расширенным `web/e2e/capture.spec.ts`. До исправления пять новых unit cases падали по ожидаемым причинам; после — **19 React passed**, TypeScript/production build passed. На новой disposable PostgreSQL через `scripts/browser_checks.py` — **22 desktop/mobile E2E passed, 30.6s**, включая реальный commit с искусственно потерянным ответом и повтор без второй задачи.
+
+Source **24190535ec41419fea15a77a8dcd36adaf715c0c**, [Linux CI 38733677815](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38733677815): **обе jobs success**, **342 CRM passed (60.09s, один прежний Starlette warning), 133 repository bot (3.59s), 19 React, 22 E2E (38.0s)**, TypeScript/build/load и production containers HTTPS/session restart/CSRF/encrypted isolated restore прошли. Linux backend включает две проверки, пропускаемые на Windows. Нагрузочные ASGI p95 search/today/create **0.1547/0.2499/0.2478s**, 10000 задач/10 клиентов; это не измерение публичного VPS.
+
+Эта версия фактически собрана и установлена на VPS только в CRM api/source, с сохранёнными предыдущими image IDs/config и rollback script. Миграций нет, counts задач/источников/истории и schema revision совпали до/после. Публичный ready200, source heartbeat свежий, внешний CRM backup verified. Реальный веб прошёл desktop/mobile login, refresh/failure/retry с сохранённым черновиком, настройки и logout без отправки задачи. Все реальные интеграции выключены. Legacy bot healthy/restarts0; его контейнер, PostgreSQL, Caddy и backup не пересоздавались. CRM backup остаётся прежним проверенным image из 4232585. Отдельные архивные 151 тест бота здесь не повторялись. Следующие эксплуатационные пробелы: независимые уведомления о сбоях, регулярная restore-репетиция, ещё не наблюдавшийся ночной запуск нового legacy timer и reboot этого timer. Подробности — EXECPLAN_DAILY_INPUT.md и VPS_OPERATIONS.md.
+
+## Дополнение 2026-10-15: отдельные внешние копии старого бота
+
+По отдельному поручению владельца проверены обе legacy SQLite, вне PostgreSQL и без Telegram polling. L-B01: online backup committed WAL и обеих баз; L-B02: аутентификация, hash/schema/rows/integrity и запрет перезаписи; L-B03: S3 readback, scoped 30-day retention и сохранность прежней копии при ошибке; L-B04: изолированный download/restore; L-B05: readonly WAL wrapper и concurrent lock. Реализация/синтетические проверки — test_legacy_backup.py, процедура и фактический S3 restore — [docs/LEGACY_BACKUP.md](LEGACY_BACKUP.md). L-B06: timer enabled/active, следующий запуск 16 октября 03:20 MSK; ручной запуск именно systemd service завершился Result=success, ExecMainStatus=0 с verified_remote. Следующий календарный запуск ещё не наблюдался. Linux synthetic suite 16 passed; полный Windows suite с UTF8 и disposable PostgreSQL: 340 passed, 2 skipped (Windows POSIX/symlink).
+
+
+## Генератор приватной серверной конфигурации, 15 октября 2026
+
+Добавлены `personal_crm.deployment_setup generate/check`, тесты `tests/test_deployment_setup.py` и общая генерация файлов для `scripts/container_checks.py`. Проверены matching DB password/URL, новый owner/key, Argon2id, отключённые интеграции, отказ от перезаписи и checkout, injection/дубли/неизвестные ключи, origin/timezone/hash/key, безопасные ошибки, согласованность включённых Telegram/S3 без внешних запросов. Локально новые tests **29 passed/1 Linux-only skip**; полный backend прогон до пяти последних дополнительных cases — **320 passed/1 skip, 121.34s**, прежнее Starlette/AnyIO warning.
+
+Финальный новый Linux run [38707830985](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38707830985) на source **ad0c56e7b61f1dd62ad49d821974d05716bd059d**: **обе jobs success**. **326 CRM passed (53.41s, без skip), 133 legacy (3.26s), 14 React, 18 desktop/mobile E2E (28.0s)**, build/pip check/migrations/restore прошли. Linux-only права 0700/0600 и запрет linked secret files проверены фактически. Первый run 38707511128 на 3a3b536 завершился cancelled после failure container job: в ней не устанавливался сам пакет CRM; исправлен editable install в единственном разрешённом root workflow.
+
+Container rehearsal использовал файлы общего renderer, проверил их offline, затем запустил actual production images: HTTPS/local CA, Secure/HttpOnly cookie, Origin/CSRF, отключённая delivery, restart DB/API/source/Caddy с сохранёнными session/task/queue, encrypted pg_dump и isolated restore с hold/revocation/inactive reminders — **passed**. Python 3.12.15, PostgreSQL server/client 16.15, Caddy 2.11.7. Runtime local image ID `sha256:a9f49b6c40d5151038afd0ae2dfcfb30bbeaffce89ab51fe04e897d1d994a5d8`; backup `sha256:06cd1baa8b63d13014cc283f2bef486eba3c8fbd73077aa1bfa378589b036096`. Это local CI image IDs, не опубликованные registry artifacts.
+
+Linux ASGI load: 10 000 задач/10 клиентов, p95 search **0.1291s**, today **0.2155s**, create **0.2000s**, restart persisted_without_delivery; без HTTP/TLS/VPS capacity measurement. Финальная фиксация документации не меняет runtime/config/workflow проверенного ad0c56e.
+
+`configuration_valid` означает корректные приватные файлы, а не работающую CRM. Без настоящего VPS/домена не выполнены public HTTPS/БД/heartbeat/reboot, без согласованных отдельного Telegram/S3 — identity/delivery/backup/remote restore. Генератор не читает найденные .env/credentials, не развёртывает и не включает эти интеграции.
+
+## Итоговый Linux CI на production patch images, 15 октября 2026
+
+[Run 38704316507](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507), source commit **91ba0dfcc460ad35bd09c66baae222ade1bd615f**: **обе jobs success**. Ubuntu 24.04.5, Python 3.12.15, Node 24.21.0, PostgreSQL server/client 16.15. **296 CRM passed (55.85s), 133 legacy (3.31s), 14 React, 18 desktop/mobile E2E (32.8s)**; TypeScript/build/pip check, migrations и реальное восстановление прошли. Одно прежнее предупреждение Starlette/AnyIO, без assertion failures.
+
+10 000 synthetic tasks/10 clients: p95 search **0.1669s**, today **0.3191s**, create **0.2671s**; 10 100 задач и pending job пережили пересоздание API. Это Linux ASGI/PostgreSQL load без HTTP/TLS и без измерения вместимости конкретного VPS.
+
+Контейнерная job подтвердила actual runtime Python **3.12.15**, PostgreSQL server **16.15**, backup client **16.15**, Caddy **2.11.7**, production frontend, private PG/API, HTTPS с local CA и проверкой сертификата, Secure/HttpOnly cookie, Origin/CSRF, отключённую delivery без fake claim, session/task/queue persistence после restart DB/API/source/Caddy, encrypted pg_dump и отдельный restore с hold/revocation/inactive reminders. Все созданные контейнеры/volumes удалены собственным project cleanup.
+
+| Target | Local image content ID из этого run |
+|---|---|
+| runtime | `sha256:5b2eb5fedc4f477c32b59fe6cdd79a37a436ffbec0f15286b7298f882c1a8a4c` |
+| backup | `sha256:51badf28c27a6147e62d99c67957300adf0e44eeee0ec7fe68a559d66725989b` |
+
+Это идентификаторы построенных CI images, не registry-published artifacts. Для VPS собрать проверенный commit и сохранить IDs его actual build. Пакет готов к первому согласованному VPS испытанию. **Не выполнены:** public DNS/ACME, reboot VPS, настоящий внешний S3/его rehearsal, независимый monitor, реальный Telegram, перенос Amvera и production legacy import. Реальные почта/ИИ выключены. Финальная фиксация результатов меняет только документацию; код/config/workflow остаются на проверенном source commit.
+
+## Переносимые проверки и подготовка Linux CI, 15 октября 2026
+
+Повтор после исправления IP: [38703604939](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38703604939), commit 8aad53a, **обе jobs success**. Linux: **296 CRM (58.49s), 133 legacy (3.55s), 14 React, 18 E2E (28.8s)**, build/pip check, 10 000 задач/10 клиентов p95 0.1442/0.2330/0.2237s. Отчёт теперь правильно фиксирует Linux и фактический PostgreSQL server 16.10/client 16.15.
+
+Production container rehearsal реально прошёл на Docker 28.0.4/Compose 2.38.2: сборка обоих targets, Caddy HTTPS с проверяемой local CA без verify=false, HttpOnly/Secure cookie, Origin/CSRF, отключённая delivery, сохранение сессии/задачи/очереди после restart DB/API/source/Caddy, реальный encrypted pg_dump/isolated restore с hold/revoked sessions/inactive reminders. Local image content IDs этого run: runtime `sha256:f84179b01d5d90ca107ed14785eb7dd2d36ab8035cd37929b2fcd74fa83f75d6`, backup `sha256:21ba83099e64ce037f937e2da555367d2eeb94264e8b184de0746087a283ea4e`. Images не опубликованы в registry и не развёрнуты на VPS.
+
+Следующий full run проверит patch обновления production Python 3.12.15/PostgreSQL 16.15; успех указанного выше run относится к предыдущим base images. Публичные DNS/ACME, reboot VPS, реальные S3/Telegram остаются Not Run.
+
+Первый фактический Linux run: [38702871815](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38702871815), commit 311fc77. Validation job **success**: Ubuntu 24.04.5, Python 3.12.15, Node 24.21.0, PostgreSQL server 16.10/client 16.15; **294 CRM (56.20s), 133 legacy (3.19s), 14 React, 18 E2E (28.3s)**, build и load прошли. Linux load p95 search/today/create 0.1450/0.2590/0.2221s; старое поле conditions ошибочно называло Windows и исправлено отдельным regression. Среда Linux подтверждена runner metadata, а не этим старым текстом.
+
+Контейнерная job **failure**: runtime/backup images построены, migrations/init owner/init ledger выполнены, при старте Caddy обнаружен конфликт IP allocation. Исправлен production dynamic ip_range, статический Caddy IP исключён из него; доверенный proxy адрес не расширен. Повтор контейнерной проверки ещё ожидается; первый run целиком не зелёный. Локально новые два regression и предыдущие guard tests: **17 passed**. Новая локальная load проверка после metadata fix также прошла, PostgreSQL 16.10, p95 0.1327/0.2057/0.2182s; это отдельное Windows измерение.
+
+На новом изолированном PostgreSQL наборе: **294 CRM passed, 130.55s**, **133 legacy passed, 7.21s**, **14 React unit passed**, TypeScript/build и pip check прошли. Новый `scripts/browser_checks.py` сам применил миграции, запустил собственные API/source на свободном loopback port и остановил их после **18 desktop/mobile E2E passed, 30.7s**. Старые локальные browser процессы не использовались. Из предупреждений: прежний Starlette/AnyIO и локальная Windows cache-directory permission warning; assertion failures отсутствуют.
+
+15 новых guard/environment tests проверяют запрет рабочей/удалённой БД, разделение трёх database names, очистку унаследованных integration credentials, ограничение Docker cleanup своим project/runtime и запрет удалённого daemon. Workflow YAML/permissions/triggers и private PG/API ports проверены статически. Владелец явно разрешил один `.github/workflows/personal-crm.yml` вне модуля; workflow не развёртывает и не использует рабочие secrets.
+
+Подготовлен отдельный контейнерный rehearsal настоящих production images, HTTPS с локальной CA, session/Origin/CSRF, restart persistence и encrypted PostgreSQL restore. Для безопасного воспроизведения production paths получили параметры с прежними defaults; Caddy routes общие для public TLS и isolated internal TLS. **Linux Docker rehearsal пока Not Run** — результат будет зафиксирован только после фактического workflow. Инструкция: [CLOUD_CHECKS.md](CLOUD_CHECKS.md). Настоящие VPS/SSH/DNS/ACME/S3/Telegram, reboot и Amvera остаются Not Run.
+
+## Подготовка первого личного запуска, 14 октября 2026
+
+Итог: **279 CRM passed, 123.61s**, одно прежнее предупреждение Starlette/AnyIO; **133 legacy passed, 6.16s**, **14 React unit passed**, TypeScript/Vite build прошёл. **18 desktop/mobile E2E passed, 32.0s** включают сохранённый cookie вход, capture/короткое уточнение, logout и фактический operational статус. PostgreSQL 16.10 настоящая; Python 3.12.14/Windows, только disposable databases и synthetic owners. `pip check` успешен. Core/Stage2/mail demos и 28-day simulation прошли с real_external_calls=0.
+
+| Изменение | Проверка |
+|---|---|
+| Owner Argon2id/opaque cookie, expiry/logout/password rotation/hold | `test_web_sessions.py`: HttpOnly/Secure/Strict, новая вкладка, server revocation, 30 дней, no-store |
+| Origin/CSRF и durable throttling | Те же PostgreSQL tests: чужой Origin, нет CSRF, 6 concurrent wrong attempts → 5×401/429, пересоздание app, отсутствие пароля в validation JSON |
+| Быстрый source-first ввод/ответ/повтор после сетевого сбоя | `test_capture.py`, React capture tests, desktop/mobile `capture.spec.ts`; request identity сохраняется, конфликт текста не создаёт дубль |
+| Durable operational status/readiness/queue | `test_operations.py`, React ops test, browser Settings; disabled не выдаётся за успешную delivery/копию, stale/error/backup age >26h видны |
+| Production без synthetic delivery/mail/fixtures | `test_production_guards.py`, startup auth/Origin guards; выключенный transport не claim pending job; source работает без browser Bearer |
+| Verified encrypted S3 workflow | `test_remote_backup.py`: synthetic object store, SDK Stubber, upload failure/readback corruption/30-day retention/restart; реальные pg_dump/download/isolated restore |
+| Restore предыдущих ca294b816edf/db71 архивов и sessions fencing | `test_recovery.py`: additive missing tables в одной транзакции, sessions revoked, worker status reset, erasure/unknown guards сохранены |
+| Безопасная initial setup | `test_pilot_setup.py`: пароль два раза/минимум 12, hash вместо plaintext, новый owner Москва/09:00; existing choices не перезаписываются |
+| Большой backlog и persistence | `test_overview_scale.py`: обзор загружает два Task вместо 501 для undated backlog, ranking/count сохранены; отдельная load DB запрещена для normal/test_web |
+
+Нагрузочный прогон: **10 000 synthetic задач, 10 параллельных клиентов, 100 чтений поиска/100 обзоров/100 созданий**. p95 search **0.1493s**, today **0.1815s**, create **0.2005s**, max 0.3034/0.2465/0.2683s. Пересоздание API сохранило 10 100 задач и pending job без доставки. Измерение Windows ASGI/TestClient + PostgreSQL, без HTTP/TLS, отдельная БД `personal_crm_test_load_*`; CPU/RAM VPS не измерены. Первый прогон до оптимизации не достиг цели today; его результат не скрыт в EXECPLAN_PILOT. Проверяемый CLI — `python -m personal_crm.load_rehearsal --report <private-path>`, CRM_LOAD_DATABASE_URL только новая пустая dedicated DB.
+
+Production YAML разобран отдельным PyYAML, сверены закрытые PG/API порты, opt-in profiles, raw env_file, production guards; **это не Docker Compose/Caddy исполнение**. Docker/Linux image build, reboot, настоящий S3/Telegram, DNS/HTTPS и независимый monitoring **Not Run**. Подготовлены [пакет размещения](PILOT_DEPLOYMENT.md) и [первые пять действий](USER_GUIDE.md); этапы реального запуска/Amvera/import остаются в [плане](../EXECPLAN_PILOT.md). Реальная почта и платный ИИ выключены, действующие Amvera-боты не изменены. Ни реальные секреты, ни копии, ни результаты тестовых баз не входят в Git.
+
+## Резервирование и пробный перенос, 14 октября 2026
+
+**241 CRM passed, 132.55s**, одно прежнее Starlette/AnyIO предупреждение. PostgreSQL 16.10, реальные pg_dump/pg_restore/psql; **22 новых сценария** в `test_recovery.py` / `test_legacy_import.py`. **133 legacy passed, 9.74s**, старый бот не запускался. **11 React unit passed**, TypeScript/Vite build; **16 E2E passed, 53.1s** (desktop/mobile, реальный HTTP/PG). После корректировки позиции screenshot повтор экспорта: **2 passed, 3.8s**; скриншоты просмотрены. `pip check`, core/Stage2/mail demos и 28-day simulation прошли, real_external_calls=0.
+
+| Поведение | Фактическое доказательство |
+|---|---|
+| AES-GCM, неверный ключ/усечение/другой тип, новый nonce | `test_encryption_authenticates_every_byte_and_randomizes_nonce`, `test_wrong_key_restore_leaves_empty_target` |
+| Согласованный snapshot при concurrent write | `test_dump_counts_and_records_share_snapshot_during_concurrent_writes` — новая правка/вторая задача видны в исходной БД, восстановлена первая версия с одним делом |
+| Атомарный restore/count verification и отказ непустому target | `test_count_mismatch_rolls_back_schema_and_quarantine`, `test_restore_rejects_nonempty_target_without_changing_it`, `test_restore_requires_isolated_name_and_authenticated_current_ledger` |
+| Даты/evidence сохранены, отправки/paid requests не повторяются | `test_postgresql_restore_preserves_evidence_and_holds_all_delivery`, `test_restore_never_replays_paid_requests_inflight_sources_or_mail`, `test_hold_blocks_commands_mail_and_even_fresh_jobs` |
+| Зарегистрированное удаление, lock, безопасная identity | `test_registered_erasure_is_reapplied_to_older_backup`, `test_erasure_ledger_lock_prevents_lost_updates`, `test_erasure_binds_owner_identity_without_sql_or_line_interpretation` |
+| Daily opt-in/restart due, 30 дней, изоляция разных БД | `test_daily_backup_cycle_is_opt_in_and_checks_archive_authentication`, `test_retention_keeps_current_copy_and_ignores_foreign_files`, `test_other_database_archive_cannot_suppress_daily_backup` |
+| Readonly legacy copy, timestamps/archive/repeat evidence, отсутствие отправителей | `test_preview_is_readonly_and_reports_unconverted_repeats`, `test_import_preserves_fields_and_never_starts_old_senders`, `test_imported_schedule_evidence_is_available_in_web_card` |
+| Повтор/changed row/stale preview/bad date/WAL/явный timezone | Остальные три сценария `test_legacy_import.py`, PostgreSQL rollback и неизменность SQLite bytes |
+| Owner-only export/hold через HTTP и browser download | `test_hold_is_visible_in_authenticated_api_and_export_is_owner_scoped`, `data-tools.test.tsx`, `data-tools.spec.ts` desktop/mobile |
+
+Runbook/ограничения: [RECOVERY.md](RECOVERY.md). D17 **частично** реализован: encrypted snapshot/daily worker/retention/rehearsal готовы, настоящий внешний носитель/supervisor/контроль ошибок и регулярный restore не настроены. T26 выполнен на synthetic standalone SQLite, реальная разрешённая копия и production receiver switch **Not Run**. T27 выполнен на isolated PostgreSQL; потребление актуального external ledger обязательно. Удаление целого профиля поддержано, выборочная очистка задачи/письма и защита внешнего журнала от rollback **Not Run**. Docker/production/live GPT/Telegram/IMAP остаются **Not Run**. Все копии/экспорты/PID/logs стенда исключены из Git; публичные fixtures только синтетические.
+
+## Регулярность и подтверждаемый план, 14 октября 2026
+
+**219 CRM passed, 1 прежнее Starlette/AnyIO предупреждение, 65.06s** на настоящей PostgreSQL 16.10. **133 legacy passed, 9.22s**, бот не запускался. **9 React unit passed**, TypeScript/Vite build прошёл. **14 browser E2E passed, 20.5s**: семь сценариев на desktop и mobile, с настоящим HTTP/PostgreSQL. Реальные почта/Telegram/GPT остаются выключенными.
+
+| Возможность | Доказательство |
+|---|---|
+| Выполнение экземпляра оставляет ряд, один следующий экземпляр | `test_completion_creates_one_future_occurrence_preserves_rule_and_no_deadline`, `test_two_competing_completions_create_one_instance`; browser recurring flow |
+| Месячная опора, високосный февраль, пропуски без очереди | `test_calendar_anchor_and_missed_periods_do_not_create_a_backlog` (4 календарных случая) |
+| DST без выдуманного сдвига, отдельная отмена/остановка | `test_dst_gap_is_visible_and_does_not_silently_shift_notification`, `test_cancel_occurrence_and_stop_series_are_different_explicit_actions` |
+| Атомарность закрытия и следующего экземпляра, шаблон только для будущего | `test_next_instance_history_failure_rolls_back_completion`, `test_recurring_template_edits_leave_current_task_and_reminder_unchanged` |
+| Дочерние дела только после подтверждения целого плана | `test_steps_are_drafts_until_whole_plan_confirmation_and_replay_is_idempotent`, `test_stale_plan_confirmation_cannot_promote_new_steps`; browser draft/confirm/child navigation |
+| Модельная правка черновика остаётся предложением | `test_model_changes_to_existing_step_plan_require_confirmation`; реальная модель выключена |
+| Ранний план сохраняет дедлайн, малый шаг не создаёт детей | `test_early_plan_requires_confirmation_and_preserves_the_external_deadline`, `test_small_step_only_starts_after_confirmation_and_does_not_create_subtasks` |
+| Версии, скрытие без повторного навязывания, чужой владелец | `test_suggestion_is_version_bound_and_dismissal_is_not_regenerated`, `test_unrelated_owner_cannot_use_rules_steps_or_suggestions` |
+| Предпочтительное время — по явным выборам, без переноса уведомлений | `test_adaptation_uses_explicit_choices_and_never_moves_existing_reminders`, `test_manually_selected_preference_is_not_overridden_by_adaptation` |
+| Повторное «выполнил» не закрывает завтрашнее дело | `test_repeated_generic_completion_does_not_close_tomorrows_instance` |
+| Сводка с единственным предложением не теряется, политика настраивается | `test_preference_only_daily_overview_is_not_silently_empty`, `test_early_planning_policy_is_server_configurable` |
+
+Новые миграции `a8273f1d804c` и `b9184f723ade` аддитивны. Полный pytest проверил down/up/check и сохранность старых записей. Повторно прошли core demo, Stage 2 demo, 28-дневная симуляция (28 digests, 13 forgotten, 1 overdue, 1 obstacle, 3 missed, 0 auto completion, 0 external calls) и mail demo с отдельным процессом восстановления. Pip check прошёл. Скриншоты просмотрены; найденный чёрный фон native dialog воспроизведён CSS assertion в настоящем браузере и исправлен явным светлым фоном.
+
+Точные команды и семантика: [PLANNING.md](PLANNING.md). NLP произвольного правила повторения не заявляется; правило задаётся вебом/HTTP. Live интеграции, Docker в этой Windows-сессии, encrypted backup/restore, импорт копии legacy и production-пилот не выполнялись. Следующий незавершённый объём — этап E.
+
+## Почта без подключения реального ящика, 14 октября 2026
+
+**197 CRM passed, 1 прежнее предупреждение Starlette/AnyIO, 48.53s** на PostgreSQL 16.10. **133 legacy passed, 8.55s**, бот не запускался. **6 React unit passed**, TypeScript/Vite build прошёл. **10 browser E2E passed, 19.6s** после перезапуска опубликованного кода, на desktop/mobile с настоящими HTTP/PostgreSQL; почтовый транспорт исключительно синтетический. Локальная фабрика для проверки явно отказывает вне test-БД и синтетического профиля.
+
+| Возможность | Доказательство |
+|---|---|
+| Read-only, два независимых разрешения, INBOX/Sent без drafts | `test_real_provider_is_disabled_before_any_network`, `test_only_examine_uid_peek_and_logout_and_paginated_high_watermark`, `test_oversized_body_is_not_fetched_and_drafts_are_excluded` |
+| Семь суток, источник до разбора, checkpoint только с commit | `test_seven_days_source_first_and_confirmation`, `test_rollback_does_not_advance_cursor` |
+| Дедупликация, новая редакция, цепочка, старый разбор | `test_replay_revisions_supersede_pending_proposal`, `test_obsolete_source_cannot_recreate_a_superseded_proposal`, `test_reply_before_confirmation_replaces_the_suggestion` |
+| UIDVALIDITY, ограниченная сверка, порядок MIME response | `test_uidvalidity_reset_and_deleted_metadata_are_reported`, `test_uidvalidity_reset_rebinds_tracked_old_message_by_message_id`, `test_busy_inbox_does_not_starve_sent_folder`, `test_server_may_return_uid_after_the_body_literal` |
+| Изменение срока/отмена без автоматической записи в task | `test_reply_proposes_deadline_and_cancel_without_mutation`, `test_flag_changes_and_removal_do_not_reanalyse_or_cancel` |
+| Sent — предложение обещания, не выполнение | `test_sent_promise_and_reply_do_not_complete_the_task`; browser evidence показывает предупреждение |
+| Ошибка доступа, ограниченные повторы, конкурентный запуск и отключение | `test_backoff_bounded_auth_and_disconnect`, `test_parallel_sync_and_expired_lease`, `test_disconnect_fences_out_inflight_and_error_visible_in_overview` |
+| Evidence, ручной просмотр, версия/owner, без активных задач до подтверждения | `test_sync_status_evidence_and_explicit_confirmation`, `test_manual_review_is_still_only_a_proposal`, `test_owner_scope_and_version_conflict_on_mail_proposal`, `test_dismiss_review_does_not_create_or_delete_any_task`, `web/e2e/mail.spec.ts` |
+| HTML/вложения, семидневная очистка без потери pending | `test_html_is_text_attachments_are_flagged_and_no_remote_fetch`, `test_irrelevant_cache_expires_but_evidence_remains`, `test_retention_does_not_destroy_an_unprocessed_source`, React `mail.test.tsx` |
+| Старое письмо для просмотра остаётся видно среди новых нерелевантных | `test_old_review_is_not_hidden_by_newer_irrelevant_mail` |
+
+`python -m personal_crm.mail_demo` выполнен: `saved=3 proposals=2 tasks_before_confirmation=0 tasks_after_confirmation=1 real_external_calls=0`. Сохранённые источники подобрал новый Python-процесс `source_worker --once`. `mail_worker --once` с обоими разрешениями false выдал `outcome=disabled`. Полный pytest проверил аддитивную миграцию `f5029a13c47b`, downgrade/upgrade/check и сохранение исходных записей. Pip check прошёл. Скриншоты desktop/mobile просмотрены.
+
+Команды и точные ограничения: [MAIL.md](MAIL.md). Живой IMAP/OAuth, права конкретного провайдера, NLP-качество, Docker на этой машине, production, backup/restore и legacy import не проверялись. Срочная почтовая инициатива до сводки пока не добавлена (D09); предложения доступны в вебе и следующей сводке в прежних лимитах. Консервативные локальные правила не объявляются полноценным NLP.
+
+## Веб и окончательная проверка продолжения, 14 октября 2026
+
+**165 CRM passed, 1 прежнее Starlette/AnyIO предупреждение, 39.04s** на настоящей PostgreSQL 16.10/Windows/Python 3.12. **133 legacy passed, 7.96s**, бот не запускался. **3 React unit passed**, TypeScript/Vite build прошёл. **8 browser E2E passed**: четыре сценария на desktop и на мобильном viewport, HTTP действительно идёт в локальный FastAPI/PostgreSQL без mock API.
+
+| Рабочая возможность | Доказательство |
+|---|---|
+| Произвольное ручное дело без включения модели, повтор HTTP без дубля | `test_manual_create_search_detail_and_idempotency`; browser create/search/edit/close |
+| Поиск, страницы, фильтры состояния/типа/источника/проекта/срока | `test_workspace_filters_pagination_and_sql_wildcards`, `test_deadline_filters_use_current_time_and_stored_timezone`, `test_unicode_case_insensitive_search` |
+| Отдельные deadline/plan/reminder, дата или точный момент по поясу | `test_workspace_edit_versions_and_separate_fields`, `test_deadline_local_distinguishes_date_and_instant`, `test_multi_field_web_edit_rolls_back_on_invalid_time` |
+| Проекты, привязка задач, отказ для чужих объектов | `test_projects_group_tasks_and_reject_foreign_objects`; browser project survives reload |
+| Входящие, связанный короткий ответ | `test_inbox_clarification_reply_uses_real_context`; browser clarification |
+| Настройки сохраняются и проверяют version | `test_settings_survive_new_requests_and_conflicts`; browser reload |
+| Пауза/снижение бюджета стоят до SDK, не включают провайдера | `test_preferences_can_pause_ai_and_cap_budget_without_enabling_provider`, `test_owner_preferences_block_paid_request_before_client_creation` |
+| Конкурентные веб-правки не затирают новые | browser stale edit; API version conflicts |
+| Источник после уточнения и ровно одно конкурентное создание | `test_edit_original_after_short_clarification_keeps_one_task`, `test_concurrent_answers_resolve_creation_once` |
+| Безопасные заголовки, no-store и приватность поиска в журнале | `test_web_requests_have_browser_security_headers`, `test_access_log_excludes_search_text`; React не пишет credential в local/sessionStorage |
+
+Миграции `c51d46c71af0`, `d721cde40377`, `e41978d2ab67` аддитивны; full pytest проверяет down/up/check и сохранение исходных записей. Core/Stage 2 demo, 28-дневная симуляция и pip check повторно прошли. Скриншоты desktop/mobile просмотрены; исправлены видимость всех пяти мобильных разделов и возврат фокуса после dialog. Локальный React bundle 260.41 kB JS (79.65 kB gzip) и 15.22 kB CSS; это размер сборки, не измерение сетевого p95.
+
+Не выполнены: реальная почта, live GPT/Telegram, независимые NLP-метрики, Docker image/Compose на этой машине, production, зашифрованные внешние backup/restore и legacy import. Ключи интеграций не подключались; модельные проверки используют официальный SDK с синтетическим HTTP. Следующие этапы C/D/E остаются открыты. Входящий/исходящий Telegram receiver не переключался.
+
+## Продолжение: шесть критических регрессий, 14 октября 2026
+
+Новый независимый прогон на Windows/Python 3.12/PostgreSQL 16.10: **145 passed, 1 прежнее предупреждение, 29.87s**. Включает все прежние 124 теста и 21 новый сценарий в `tests/test_continuation_regressions.py`. До исправлений воспроизведены ложное завершение, пропуск короткого времени, ограничение старых задач, неверное поле edit и заблокированный unbilled retry. Результаты предыдущих прогонов ниже остаются историческими.
+
+| Сценарий | Доказательство |
+|---|---|
+| «Резюме не обновил», «Резюме обновил?» и четыре варианта | `test_uncertain_completion_keeps_task_and_reminder`: задача, версия, reminder и история сохранены |
+| «в 19:00» после уточнения, рестарта и полуночи | `test_time_only_answer_uses_saved_date_after_restart_and_midnight`; неверные часы не теряют дату |
+| Поиск старого дела среди 111 задач | `test_subject_search_finds_old_task_beyond_65_rows`, `test_last_cursor_finds_old_reminder_outside_recent_candidates` |
+| Сбой до разбора, истечение lease, временная ошибка | `test_recovery_picks_pending_source_without_telegram_replay`, `test_recovery_reclaims_expired_parse_after_restart`, `test_transient_processing_failure_recovers_with_bounded_backoff`, `test_recovery_cli_runs_in_new_process` |
+| Edit времени и одновременная правка названия | `test_edit_reminder_changes_reminder_after_confirmation`, `test_edited_title_and_time_apply_together_only_after_confirmation` |
+| Неоплаченный отказ и потенциально оплаченный timeout | `test_known_unbilled_provider_error_allows_explicit_retry`, `test_rate_limit_automatically_retries_once_after_backoff`, `test_uncertain_paid_request_never_repeats_in_recovery` |
+| Ограниченные повторы и точная привязка вопроса | `test_permanent_processing_failure_stops_automatic_retries`, `test_explicit_reply_finds_question_beyond_context_cap` |
+
+Миграция `b63125ff910a` аддитивна; full pytest проверил down/up/check и сохранение старых записей. Core demo, Stage 2 demo, 28-дневная симуляция и pip check прошли. Настоящие Telegram/почта/GPT, production и Docker Compose на этой Windows-машине **Not Run**; никаких платных или внешних продуктовых вызовов не выполнялось.
+
 Актуальный Stage 2, 14 октября 2026 года: **124 passed, 1 warning in 19.15s** на настоящей PostgreSQL 16.10; включает прежние 69 и 55 новых проверок. **133 legacy passed in 1.07s**. Официальный SDK работает с mocked HTTP; live GPT/Telegram и независимая оценка NLP **Not Run**. Исторические результаты ядра ниже сохранены с датами.
 
 ## Stage 2: пятнадцать обязательных сценариев
@@ -57,14 +233,14 @@ O-T01–O-T06/O-T08 закрыты на локальном стенде в об�
 | T17 | Выполнение до повтора | Старый повтор не отправляется. | Ядро проверено — test_close_before_repeat_cancels, test_close_before_initial_send_cancels |
 | T18 | Три переноса плана выполнения | Один раз предложить разбор, переносы уведомлений не засчитываются. | Ядро проверено — test_plan_moves_count_without_changing_deadline, test_obstacle_prompt_once_not_daily_and_no_auto_state_change; вопрос не выбирает действие за владельца |
 | T19 | Просрочка | Исходный срок сохранён, нет одинакового отдельного предупреждения каждый день. | Ядро проверено — test_overdue_announcement_once_and_original_deadline_retained, test_full_initiative_budget_reports_overdue_in_digest_once, test_reminder_move_preserves_original_deadline |
-| T20 | Регулярная задача | Закрытие экземпляра не отменяет следующие периоды. | Не проверено |
+| T20 | Регулярная задача | Закрытие экземпляра не отменяет следующие периоды. | Проверено на PostgreSQL/HTTP и desktop/mobile E2E: completion/cancel экземпляра, отдельный stop, monthly/leap/DST, конкуренция/rollback; разговорное создание произвольного правила Not Run |
 | T21 | Перезапуск/остановка обработчика | Сохранённые задания восстанавливаются, устаревшее не отправляется массово. | Ядро проверено — lease/fencing/SKIP LOCKED, test_outage_consolidates_old_exact_reminders_and_keeps_tasks, test_two_workers_consolidate_one_outage_report; реальные каналы не подключены |
 | T22 | Неопределённый исход отправки | Честное состояние, не бесконечные повторы. | Ядро проверено — bounded retries/unknown, test_crash_during_digest_reservation_does_not_resend_one_time_question, test_closing_after_crashed_intent_keeps_unknown_outcome_instead_of_pending_forever |
 | T23 | Пояс с сезонным переводом времени | Даты и сводка по политике профиля, без дублей; неизвестный пояс не заменяется серверным. | Stage 2: relative/IANA и DST gaps/folds проверены — test_dst_gap_fold_and_unknown_timezone_ask; миграция пользовательского пояса остаётся отдельно |
-| T24 | Отозван почтовый доступ | Видна ошибка синхронизации, не ложное «новых дел нет». | Не проверено |
+| T24 | Отозван почтовый доступ | Видна ошибка синхронизации, не ложное «новых дел нет». | Проверено на синтетическом IMAP/HTTP/PostgreSQL — test_backoff_bounded_auth_and_disconnect, test_disconnect_fences_out_inflight_and_error_visible_in_overview; живой ящик не подключён |
 | T25 | Достигнут бюджет ИИ | Новые платные обращения блокируются, базовые задачи/напоминания работают. | Stage 2: PostgreSQL budget gate/80/100/concurrency с настоящим SDK и mocked HTTP — test_concurrent_requests_cannot_overspend, test_80_100_thresholds_and_utc_month; платных вызовов нет |
-| T26 | Миграция старого бота | Сверены записи/сроки/повторы, тренировки целы, нет двух отправителей. Производственную миграцию пока не выполнять. | Не проверено |
-| T27 | Восстановление копии | Данные/доступ/расписание проверены, нет массовой повторной отправки, учтены зарегистрированные удаления. | Не проверено |
+| T26 | Миграция старого бота | Сверены записи/сроки/повторы, тренировки целы, нет двух отправителей. Производственную миграцию пока не выполнять. | Synthetic standalone SQLite → PostgreSQL проверено: notes/done/archive/UTC/repeat evidence/idempotence/rollback; routine bytes целы, sender/jobs отсутствуют. Реальная копия/production Not Run |
+| T27 | Восстановление копии | Данные/доступ/расписание проверены, нет массовой повторной отправки, учтены зарегистрированные удаления. | Проверено настоящим pg_dump/restore/psql в isolated БД: count verification/rollback, owner hold, schedules выключены для ручной проверки, unknown/paid не replay, external ledger повторно удаляет профиль. Off-server/регулярный rehearsal Not Run |
 | T28 | Посторонний пользователь | Не читает и не меняет данные через бот или веб; пустая конфигурация владельца не открывает доступ. | Ядро проверено — test_owner_api_and_connector_authentication, test_missing_owner_fails_closed, test_object_owner_and_versions_checked, test_confirmation_other_owner_refused |
 
 ## OpenAI API
@@ -117,15 +293,15 @@ Fake-модель проверяет маршрутизацию и полити�
 | R01 | POST /sources, T01–T02; controlled fixture. Ограниченный русский Update-ввод в Stage 2; общее NLP Not Run. |
 | R02 | channel=forward и отдельные external_id; T07. Изолированный Update adapter есть, live receiver выключен и Not Run. |
 | R03 | obvious create либо предложение/уточнение; T03, T07. Смысловое качество не проверялось. |
-| R04 | mail всегда предложение; T10 и demo. |
+| R04 | MailSync/source worker создают только proposals/review; T10, mail demo и browser подтверждают отсутствие задачи до «Принять». |
 | R05 | Неизвестная fixture вызывает уточнение без блокировки другого ввода; T03. |
 | R06 | Любой propose_update ждёт подтверждения; T13–T14. |
 | R07 | Explicit HTTP commands исполняются сразу после проверки версии; T12, T17. Ограниченные разговорные команды/версии проверены в Stage 2. |
-| R08 | draft_steps только текст: test_sdk_strict_payload_source_cache_and_drafts; дочерние обязательства не создаются. |
-| R09 | Подтверждение предложенных reminder/deadline есть; адаптация и ручной экран настроек не реализованы. |
+| R08 | Модельные draft_steps остаются черновиком; изменение существующего плана только через подтверждение, весь набор дочерних задач создаётся отдельным явным решением. Tests stage D + SDK fixtures; NLP качество Not Run. |
+| R09 | Ручные настройки и версия профиля; ограниченное предложение предпочтительного времени по трём явным выборам. Только подтверждение, существующие уведомления и лимиты не изменяются. |
 | R10 | Quiet hours отсутствуют; Worker/policy. Настоящей доставки нет. |
 | R11 | Три main, сроки, forgotten, waiting, proposals/guidance; T15. Внешняя доставка только fake. |
-| R12 | Все дедлайны присутствуют в полном overview, просрочка вычисляется отдельно. Предложения раннего выполнения/малого шага ещё не реализованы. |
+| R12 | Все дедлайны в overview; ранний план и малый шаг предлагаются локально, применяются после подтверждения, deadline сохраняется. test_early_plan_requires_confirmation_and_preserves_the_external_deadline, test_small_step_only_starts_after_confirmation_and_does_not_create_subtasks. |
 | R13 | Единственный repeat через 4 часа, T16–T17. |
 | R14 | Счётчик поздних plan-переносов, один вопрос после каждых трёх; T18. Уменьшение шага автоматически не выполняется; разговорный ответ ещё не реализован. |
 | R15 | Ротация двух undated задач по успешному представлению/обсуждению; test_successful_digest_rotates_forgotten_manual_overview_changes_nothing и 28-дневная симуляция. |
@@ -144,17 +320,17 @@ Fake-модель проверяет маршрутизацию и полити�
 | D04 | Exact вне лимита, repeat внутри; test_exact_exempt_repeat_consumes_limit. |
 | D05 | Local day и межполуночный gap; test_policy_gap_crosses_midnight_and_dst. |
 | D06 | Счётчик только поздних переносов существующего planned_on; reminder и молчание не учитываются — test_plan_moves_count_without_changing_deadline. |
-| D07 | Fake-mail endpoint с отдельной аутентификацией; реальный ящик/папки не подключены. |
-| D08 | Почтовые 7 дней и checkpoints не реализованы. |
+| D07 | IMAP SSL adapter, явные INBOX/Sent, readonly EXAMINE/BODY.PEEK, исключение Draft/Deleted/Junk; protocol tests. Реальный ящик не подключён. |
+| D08 | Семь суток, PostgreSQL checkpoint/lease, revision/thread dedupe и UIDVALIDITY recovery; test_mail_sync.py/test_mail_imap.py. |
 | D09 | Digest показывает число pending proposals; приоритет срочного письма не реализован. |
 | D10 | Внешний календарь не подключён; внутренние события следующий этап. |
 | D11 | Default fake; отдельный test-bot TelegramTransport проверен mocked HTTP, live/web push Not Run. |
-| D12 | Текстовые draft_steps и proposal подтверждение plan есть; автоматического назначения дочерних задач нет. |
+| D12 | До 12 черновых шагов; одно подтверждение текущей версии создаёт весь набор детей без придуманных сроков. Replay request_id не дублирует набор. |
 | D13 | kind=note/task/waiting и отсутствие придуманного дедлайна; T02/T09. Общая классификация fake-моделью не доказана. |
 | D14 | Серверная привязка владельца, deny by default; T28. |
-| D15 | Настоящие AI/почта/Telegram отсутствуют; test_no_real_ai_calls. |
-| D16 | Очистка почтового кэша/retention не реализована; тестируются только синтетические источники. |
-| D17 | Зашифрованные внешние backup/restore не реализованы. Рестарт PostgreSQL не равен восстановлению копии. |
+| D15 | Реальные AI/почта/Telegram выключены. IMAP требует enabled+read consent до создания клиента; test_real_provider_is_disabled_before_any_network. Live/paid calls не выполнялись. |
+| D16 | Очистка обработанного кэша через 7 суток, ограниченный evidence остаётся с pending/accepted; необработанные источники сохраняются. test_irrelevant_cache_expires_but_evidence_remains, test_retention_does_not_destroy_an_unprocessed_source. |
+| D17 | Частично: AES-256-GCM snapshot, opt-in daily cycle, retention 30 дней, isolated restore/counts/hold/erasure ledger проверены. Фактический внешний mount/supervisor/monitoring и регулярный rehearsal не настроены; RPO 24h в production не заявляется. |
 
 ## Фактическое окружение и команды первого ядра
 
@@ -189,3 +365,10 @@ Dемо проходит: source_persisted, duplicate_applied_once, fake_deliver
 Core demo повторно выполнено после дополнения схемы, все исходные assertions успешны. Обновлённый Compose собран и миграция применена к его сохранённым синтетическим данным. Настоящий HTTP smoke проверяет также plan, overview и history. Legacy: **133 passed in 1.11s**, secret scan прошёл. Изменения по-прежнему только в personal-crm; действующий бот/production не запускались.
 
 После сборки финального исходника выполнен `docker compose ... restart crm-db`; оба HTTP smoke повторно прошли. Проверено сохранение завершённой Telegram-задачи предыдущего smoke в той же отдельной БД. Это restart/persistence, не encrypted backup/restore. Scope и credential-pattern scans проверили все 32 изменённых файла относительно подготовленной ветки; только personal-crm/. `pip check` не обнаружил конфликтов зависимостей.
+# Проверка мониторинга — 15 октября 2026
+
+Реализация0199f81/126b755: [Linux CI38740174166](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38740174166) обе jobs success:362 CRM,133 repository bot,19 React,22 browser; build/load/контейнерные HTTPS+restart+encrypted restore прошли. Реальный VPS systemd job восстановил S3 CRM PostgreSQL и обе legacy SQLite, проверил карантин и целостность, удалил временный стек. Локальная доставка нового @Technical_supp_bot проверена; владелец подтвердил получение. Cronitor Hacker: HTTPS200/Healthy, live heartbeat; журнал Alerts Sent подтвердил внешний alert13:12UTC и recovery13:13UTC в email/webhook. Производственные сервисы для теста не останавливали. Таймеры включены: monitor каждые2мин, restore воскресенье04:20МСК. Следующий weekly run18октября и reboot ещё не наблюдались. Подробности: [MONITORING.md](MONITORING.md), EXECPLAN_MONITORING.md.
+
+## Напоминания новой CRM —15октября2026
+
+Владелец выбрал @Technical_supp_bot. Реализация9d145ad: отдельный IPv6-only egress для delivery, монитор running/fresh heartbeat/failed-or-unknown queue. Наблюдались4 red случая, затем дополнительный red для failed/unknown; после реализации18 targeted monitor/network/transport checks pass. [Linux CI38743431447](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38743431447) обе jobs success, полный backend/bot/frontend/browser/load и контейнерный HTTPS/restart/encrypted restore. Реальное synthetic напоминание через временную PostgreSQL:8секунд вперёд, idle/sent/idle, Attemptsuccess/providerID, ровно1попытка. Рабочие дела не меняли, тестовую БД удалили. Production delivery running/restarts0, API send=true без token/webhookfalse, ready200; scheduled monitor13:34:48UTC9/9healthy/externalconfigured, все timers активны. Старый receiver и source/db/backup/Caddy ID/image/start/restarts неизменны, API image прежний2419053. Не наблюдались будущие пользовательские reminders и reboot нового worker. См. [TELEGRAM_DELIVERY.md](TELEGRAM_DELIVERY.md).

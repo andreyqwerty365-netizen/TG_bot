@@ -1,0 +1,10 @@
+{
+  "crm_origin": "https://crm.example.org",
+  "telegram_bot_token": "",
+  "telegram_chat_id": "",
+  "heartbeat_url": "",
+  "delivery_required": false,
+  "legacy_backup_report": "/srv/legacy-reminder-bot/encrypted-backups/last-success.json",
+  "restore_report": "/srv/personal-crm/ops-reports/restore-last-run.json",
+  "state_directory": "/srv/personal-crm/monitor-state"
+}

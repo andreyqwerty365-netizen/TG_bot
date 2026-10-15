@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily legacy bot data backup at 03:20 Moscow
+
+[Timer]
+OnCalendar=*-*-* 03:20:00 Europe/Moscow
+Persistent=true
+AccuracySec=1min
+Unit=legacy-data-backup.service
+
+[Install]
+WantedBy=timers.target

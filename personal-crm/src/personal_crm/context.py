@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import re
 
-from sqlalchemy import select, update
+from sqlalchemy import Date, cast, func, or_, select, update
 
 from .models import Conversation, Dialogue, Reminder, Source, SourceVersion, Task
 
@@ -57,12 +57,30 @@ def build_context(s, owner_id, source, version, profile, now):
         Source.owner_id == owner_id, Source.account == source.account)) if reply else None
     if not linked_version:
         reply = None
-    task_rows = s.scalars(select(Task).where(Task.owner_id == owner_id, Task.state.in_(["active", "in_progress", "deferred"]))
-                         .order_by(Task.created_at.desc(), Task.id).limit(65)).all()
+    due_occurrence = or_(Task.recurrence_id.is_(None),
+        Task.occurrence_on <= cast(func.timezone(Task.occurrence_timezone, now), Date))
+    task_query = select(Task).where(Task.owner_id == owner_id, Task.state.in_(["active", "in_progress", "deferred"]), due_occurrence)
+    completion = re.fullmatch(r"(.+?) (?:обновил|выполнил|сделал|закончил)", version.text.lower().strip(" .!?"))
+    subject = completion.group(1) if completion else ""
+    words = {w for w in re.findall(r"[а-яёa-z]{3,}", subject) if w not in {"задачу", "задача", "дело", "последнее", "последнюю"}}
+    if words:
+        # Resolve against all owned rows before applying the provider's context cap.
+        for word in words:
+            task_query = task_query.where(Task.title_search.contains(word.casefold(), autoescape=True))
+    elif "перенеси напоминание" in version.text.lower():
+        task_query = task_query.where(select(Reminder.id).where(Reminder.task_id == Task.id, Reminder.active.is_(True)).exists())
+    task_rows = s.scalars(task_query.order_by(Task.created_at.desc(), Task.id).limit(9)).all()
     complete = len(task_rows) <= 8
     tokens = set(re.findall(r"[а-яёa-z]{4,}", version.text.lower()))
     task_rows.sort(key=lambda task: (task.id != (cursor.last_task_id if cursor else None),
                                     -len(tokens & set(re.findall(r"[а-яёa-z]{4,}", task.title.lower())))))
+    if cursor:
+        # IDs are durable references, not hints limited to the newest rows.
+        for identity in (cursor.last_task_id, cursor.last_reminder_task_id):
+            linked_task = s.scalar(select(Task).where(Task.id == identity, Task.owner_id == owner_id,
+                                   Task.state.in_(["active", "in_progress", "deferred"]), due_occurrence)) if identity else None
+            if linked_task and all(t.id != identity for t in task_rows):
+                task_rows.insert(0, linked_task)
     if cursor and cursor.last_reminder_task_id:
         # Keep the explicit reminder cursor inside the bounded candidate set.
         task_rows.sort(key=lambda task: task.id != cursor.last_reminder_task_id)
@@ -78,7 +96,9 @@ def build_context(s, owner_id, source, version, profile, now):
         candidates.append(Candidate(task.id, task.version, task.title[:512], task.kind, reminder.at if reminder else None))
     questions = [Question(d.id, d.source_version_id, d.proposal_id, d.task_id, d.expected_version, d.pending_action)
                  for d in s.scalars(select(Dialogue).where(Dialogue.owner_id == owner_id, Dialogue.account == source.account,
-                                                          Dialogue.status == "pending").order_by(Dialogue.expires_at).limit(8))]
+                                                          Dialogue.status == "pending").order_by(
+                     (Dialogue.source_version_id == (reply or (cursor.last_source_version_id if cursor else None))).desc(),
+                     Dialogue.expires_at, Dialogue.id).limit(8))]
     return SourceContext(owner_id, version.id, source.channel, source.account, version.text, version.received_at,
                          version.original_at, profile.timezone, candidates, questions,
                          cursor.last_task_id if cursor else None, reply,

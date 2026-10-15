@@ -74,7 +74,7 @@ class ProviderOutput(Strict):
     reminder_at: str | None
     target_id: str | None
     target_version: int | None
-    change: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus"] | None
+    change: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus", "steps"] | None
     planned_on: str | None
     return_on: str | None
     focused: bool | None
@@ -200,7 +200,7 @@ class ResponsesAdapter:
         except Exception as error:
             from openai import APIStatusError, APITimeoutError
             known_unbilled = isinstance(error, APIStatusError) and error.status_code in (400, 401, 403, 404, 429)
-            code = error.code if isinstance(error, AIError) else "ai_timeout" if isinstance(error, APITimeoutError) else "ai_auth_error" if known_unbilled else "ai_invalid_output"
+            code = error.code if isinstance(error, AIError) else "ai_timeout" if isinstance(error, APITimeoutError) else "ai_rate_limit" if known_unbilled and error.status_code == 429 else "ai_auth_error" if known_unbilled else "ai_invalid_output"
             self.ledger.settle(reservation_id, actual, code=code, known_unbilled=known_unbilled)
             raise AIError(code) from None
 

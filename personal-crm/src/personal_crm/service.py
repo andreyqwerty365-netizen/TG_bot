@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from .models import (AIBudget, Conversation, Dialogue, Guidance, History, Job, OutgoingReply, Profile,
@@ -24,6 +24,8 @@ class CommandValues:
     planned_on: date | None = None
     return_on: date | None = None
     focused: bool | None = None
+    project_id: str | None = None
+    draft_steps: list[str] | None = None
 
 
 def snapshot(task):
@@ -35,6 +37,12 @@ def snapshot(task):
         "return_on": task.return_on.isoformat() if task.return_on else None,
         "focused": task.focused, "plan_postponements": task.plan_postponements,
         "draft_steps": task.draft_steps,
+        "project_id": task.project_id,
+        "recurrence_id": task.recurrence_id,
+        "occurrence_on": task.occurrence_on.isoformat() if task.occurrence_on else None,
+        "occurrence_timezone": task.occurrence_timezone, "recurrence_warning": task.recurrence_warning,
+        "parent_task_id": task.parent_task_id, "step_batch": task.step_batch, "step_index": task.step_index,
+        "steps_revision": task.steps_revision, "promoted_steps_revision": task.promoted_steps_revision,
     }
 
 
@@ -42,7 +50,7 @@ class CRMService:
     def __init__(self, factory, interpreter, clock=utcnow):
         self.factory, self.interpreter, self.clock = factory, interpreter, clock
 
-    def register(self, owner_id, timezone=None):
+    def register(self, owner_id, timezone=None, *, initialize_only=False):
         if not owner_id:
             raise CRMError("owner_not_configured", 503)
         if timezone:
@@ -50,7 +58,7 @@ class CRMService:
         with self.factory.begin() as s:
             s.execute(insert(Profile).values(id=owner_id, timezone=timezone).on_conflict_do_nothing())
             current = s.get(Profile, owner_id)
-            if timezone and current.timezone != timezone:
+            if timezone and current.timezone != timezone and not initialize_only:
                 raise CRMError("timezone_config_conflict")
 
     @staticmethod
@@ -58,6 +66,8 @@ class CRMService:
         profile = s.scalar(select(Profile).where(Profile.id == owner_id).with_for_update())
         if not profile:
             raise CRMError("owner_not_configured", 503)
+        if profile.recovery_hold:
+            raise CRMError("recovery_hold", 503)
         return profile
 
     @staticmethod
@@ -94,6 +104,7 @@ class CRMService:
     def process(self, owner_id, version_id):
         now, token = self.clock(), uid()
         with self.factory.begin() as s:
+            self.owner(s, owner_id)
             source_version = s.scalar(select(SourceVersion).join(Source).where(
                 SourceVersion.id == version_id, Source.owner_id == owner_id
             ).with_for_update(of=SourceVersion))
@@ -104,13 +115,40 @@ class CRMService:
             if source_version.status == "processing" and source_version.parse_until > now:
                 return {"status": "processing", "source_version_id": version_id}
             source_version.status = "processing"
+            source_version.parse_attempts += 1
+            source_version.retry_at = None
             source_version.parse_token = token
             source_version.parse_until = now + timedelta(minutes=1)
             text = source_version.text
         context = None
         trusted_rule = False
         try:
-            if hasattr(self.interpreter, "interpret_context"):
+            with self.factory() as s:
+                mail_version = s.get(SourceVersion, version_id)
+                synced_mail = bool((mail_version.channel_metadata or {}).get("mail_sync"))
+            if synced_mail:
+                from .mail_rules import interpret_mail
+                with self.factory.begin() as s:
+                    profile = self.owner(s, owner_id)
+                    version = s.get(SourceVersion, version_id)
+                    if version.parse_token != token:
+                        return {"status": "processing", "source_version_id": version_id}
+                    source = s.get(Source, version.source_id)
+                    newer = s.scalar(select(SourceVersion.id).where(SourceVersion.source_id == source.id,
+                                     SourceVersion.revision > version.revision))
+                    if newer:
+                        result = {"status": "superseded", "source_version_id": version_id}
+                    else:
+                        output, review = interpret_mail(s, owner_id, source, version, profile.timezone)
+                        if output is None:
+                            result = {"status": "review" if review else "ignored", "source_version_id": version_id}
+                        else:
+                            # Local interpretation, superseding and proposal commit under one owner lock.
+                            result = self._apply_interpretation(s, owner_id, source, version, output)
+                    version.status, version.result, version.error_code = "processed", result, None
+                    version.parse_token = version.parse_until = None
+                    return result
+            elif hasattr(self.interpreter, "interpret_context"):
                 from .context import build_context
                 from .language import deterministic
                 with self.factory.begin() as s:
@@ -135,6 +173,7 @@ class CRMService:
                 result = self._apply_interpretation(s, owner_id, source, version, output, trusted_rule, context)
                 self._finish_context(s, owner_id, source, version, output, result, trusted_rule)
                 version.status, version.result, version.error_code = "processed", result, None
+                version.retry_at = None
                 version.parse_token, version.parse_until = None, None
                 return result
         except Exception as error:
@@ -144,10 +183,12 @@ class CRMService:
                 version = s.scalar(select(SourceVersion).where(SourceVersion.id == version_id).with_for_update())
                 if version.parse_token == token:
                     allowed_codes = {"ai_disabled", "ai_consent_required", "ai_configuration_invalid", "ai_budget_limit",
-                                     "ai_previous_attempt", "ai_timeout", "ai_refusal", "ai_incomplete", "ai_invalid_output", "ai_auth_error"}
+                                     "ai_previous_attempt", "ai_timeout", "ai_refusal", "ai_incomplete", "ai_invalid_output", "ai_auth_error", "ai_rate_limit"}
                     code = getattr(error, "code", "interpretation_failed")
                     code = code if code in allowed_codes else "interpretation_failed"
                     version.status, version.error_code = "error", code
+                    if code in ("interpretation_failed", "ai_rate_limit") and version.parse_attempts < 3:
+                        version.retry_at = self.clock() + timedelta(seconds=60 * version.parse_attempts)
                     version.parse_token, version.parse_until = None, None
                     if hasattr(self.interpreter, "interpret_context"):
                         source = s.get(Source, version.source_id)
@@ -159,6 +200,22 @@ class CRMService:
                         cursor.last_source_version_id = version.id
                     self._reply(s, owner_id, version, {"status": "error"})
             return {"status": "error", "source_version_id": version_id, "code": version.error_code or "interpretation_failed"}
+
+    def recover_sources(self, owner_id, limit=16):
+        """Resume source-first commits without requiring a second channel delivery."""
+        with self.factory() as s:
+            identities = s.scalars(select(SourceVersion.id).join(Source).where(
+                Source.owner_id == owner_id,
+                or_(SourceVersion.status == "pending", and_(SourceVersion.status == "processing",
+                    SourceVersion.parse_until <= self.clock()), and_(SourceVersion.status == "error",
+                    SourceVersion.parse_attempts < 3, SourceVersion.retry_at <= self.clock()))
+            ).order_by(SourceVersion.received_at, SourceVersion.id).limit(limit)).all()
+        processed = 0
+        for identity in identities:
+            result = self.process(owner_id, identity)
+            if result["status"] not in ("error", "processing"):
+                processed += 1
+        return {"processed": processed}
 
     def _apply_interpretation(self, s, owner_id, source, version, output, trusted_rule=False, context=None):
         if output.operation in ("command", "answer", "overview"):
@@ -204,17 +261,29 @@ class CRMService:
             proposal = Proposal(owner_id=owner_id, source_version_id=version.id,
                                 task_id=target.id, expected_version=target.version, payload=payload)
         else:
+            creation_version_id, creation_source = version.id, source
+            if output.dialogue_id and trusted_rule:
+                dialogue = self._bound_dialogue(s, owner_id, source.account, output.dialogue_id)
+                if not dialogue or not dialogue.pending_action or dialogue.pending_action.get("operation") != "create":
+                    return {"status": "conflict", "code": "dialogue_conflict"}
+                origin = dialogue.pending_action.get("origin_source_version_id", dialogue.source_version_id)
+                origin_version = s.scalar(select(SourceVersion).join(Source).where(SourceVersion.id == origin,
+                    Source.owner_id == owner_id, Source.account == source.account, Source.channel == "owner"))
+                if not origin_version:
+                    raise CRMError("unbound_creation")
+                creation_version_id, creation_source = origin_version.id, s.get(Source, origin_version.source_id)
             # An edited source creates a version-bound proposal, never a second active task.
             existing = s.scalar(select(Task).join(SourceVersion).where(
-                SourceVersion.source_id == source.id, Task.owner_id == owner_id
+                SourceVersion.source_id == creation_source.id, Task.owner_id == owner_id
             ))
             if existing:
+                change = ("reminder" if output.title == existing.title else "edit") if output.reminder_at else "title"
                 payload.update(operation="propose_update", target_id=existing.id,
-                               target_version=existing.version, change="title")
+                               target_version=existing.version, change=change)
                 proposal = Proposal(owner_id=owner_id, source_version_id=version.id,
                                     task_id=existing.id, expected_version=existing.version, payload=payload)
             elif source.channel != "mail" and output.obvious and (not output.reminder_at or (trusted_rule and source.channel == "owner")) and not (output.planned_on or output.return_on or output.focused is not None):
-                task = self._create(s, owner_id, version.id, output, "source", version.id,
+                task = self._create(s, owner_id, creation_version_id, output, "source", version.id,
                                     allow_reminder=trusted_rule and source.channel == "owner")
                 return {"status": "created", "source_version_id": version.id, "task": snapshot(task)}
             else:
@@ -225,15 +294,20 @@ class CRMService:
                 "proposal_id": proposal.id, "version": proposal.version, "proposal": payload,
                 "target_title": self.task(s, owner_id, proposal.task_id).title if proposal.task_id else output.title}
 
-    def _create(self, s, owner_id, source_version_id, output, reason, reference, allow_reminder=False):
+    def _create(self, s, owner_id, source_version_id, output, reason, reference, allow_reminder=False, project_id=None,
+                recurrence=None, occurrence_on=None, parent_task=None, step_index=None):
         deadline = output.deadline.model_dump() if output.deadline else None
-        task = Task(owner_id=owner_id, source_version_id=source_version_id,
+        task = Task(owner_id=owner_id, source_version_id=source_version_id, project_id=project_id,
                     title=output.title, kind=output.kind, original_deadline=deadline,
                     deadline=deadline, version=1, state="active", created_at=self.clock())
+        if recurrence:
+            task.recurrence_id, task.occurrence_on, task.occurrence_timezone = recurrence.id, occurrence_on, recurrence.timezone
+        if parent_task:
+            task.parent_task_id, task.step_batch, task.step_index = parent_task.id, parent_task.steps_revision, step_index
         task.draft_steps = output.draft_steps
         if output.planned_on or output.return_on:
             profile = s.get(Profile, owner_id)
-            if not profile.timezone:
+            if not profile.timezone and not recurrence:
                 raise CRMError("profile_timezone_required", 422)
             task.planned_on = output.planned_on
             if output.return_on:
@@ -249,7 +323,7 @@ class CRMService:
             if not allow_reminder:
                 raise CRMError("schedule_requires_owner_confirmation")
             self._schedule(s, task, output.reminder_at)
-        self._history(s, task, None, "owner" if reason == "confirmation" else "source", reason, reference)
+        self._history(s, task, None, "owner" if reason in ("confirmation", "explicit_web_create") else "source", reason, reference)
         return task
 
     def confirm(self, owner_id, proposal_id, proposal_version, accept=True):
@@ -355,10 +429,26 @@ class CRMService:
         elif action == "reminder":
             if not values.reminder_at:
                 raise CRMError("reminder_required", 422)
+            task.recurrence_warning = None
         elif action == "deadline":
             task.deadline = values.deadline.model_dump() if values.deadline else None
         elif action == "title" and values.title:
             task.title = values.title
+        elif action == "steps" and values.draft_steps:
+            task.draft_steps = values.draft_steps
+            task.steps_revision += 1
+        elif action == "edit" and values.title and values.reminder_at:
+            task.title = values.title
+        elif action == "clear_reminder":
+            pass
+        elif action == "clear_plan":
+            task.planned_on = None
+        elif action == "project":
+            task.project_id = values.project_id
+        elif action == "start":
+            task.state, task.return_on = "in_progress", None
+        elif action == "activate":
+            task.state, task.return_on = "active", None
         elif action == "cancel":
             task.state = "cancelled"
         elif action == "focus" and values.focused is not None:
@@ -384,17 +474,17 @@ class CRMService:
             raise CRMError("forbidden_action", 422)
         task.version += 1
         task.last_discussed_at = self.clock()
-        if action in ("close", "cancel", "defer", "reminder"):
+        if action in ("close", "cancel", "defer", "reminder", "edit", "clear_reminder"):
             self._cancel(s, task)
-            if action == "reminder":
+            if action in ("reminder", "edit"):
                 self._schedule(s, task, values.reminder_at)
-            else:
+            elif action in ("close", "cancel", "defer"):
                 self._cancel_guidance(s, task)
         else:
             # Existing reminder remains applicable to the explicitly revised task.
             s.execute(update(Reminder).where(Reminder.task_id == task.id, Reminder.active.is_(True))
                       .values(task_version=task.version))
-        if action == "plan":
+        if action in ("plan", "clear_plan"):
             ids = select(Reminder.id).where(Reminder.task_id == task.id)
             s.execute(update(Job).where(Job.reminder_id.in_(ids), Job.kind == "repeat",
                                        Job.status.in_(["pending", "leased"]))
@@ -408,7 +498,10 @@ class CRMService:
         elif action == "deadline":
             self._cancel_guidance(s, task, kind="overdue")
         self._history(s, task, before, "owner", reason, reference,
-                      values.reminder_at.isoformat() if action == "reminder" else None)
+                      values.reminder_at.isoformat() if action in ("reminder", "edit") else None)
+        if action in ("close", "cancel") and task.recurrence_id:
+            from .recurrence import advance
+            advance(s, self, task)
 
     def _schedule(self, s, task, at):
         reminder = Reminder(owner_id=task.owner_id, task_id=task.id,

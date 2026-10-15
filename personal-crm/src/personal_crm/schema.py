@@ -42,7 +42,7 @@ class Interpretation(Strict):
     reminder_at: datetime | None = None
     target_id: str | None = None
     target_version: int | None = Field(default=None, gt=0)
-    change: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus"] | None = None
+    change: Literal["close", "reminder", "deadline", "title", "plan", "defer", "resume", "cancel", "focus", "edit", "steps"] | None = None
     planned_on: date | None = None
     return_on: date | None = None
     focused: bool | None = None
@@ -50,6 +50,14 @@ class Interpretation(Strict):
     accepted: bool | None = None
     pending_action: dict | None = None
     draft_steps: list[str] = Field(default_factory=list, max_length=12)
+
+    @field_validator("draft_steps")
+    @classmethod
+    def safe_steps(cls, values):
+        values = [value.strip() for value in values]
+        if any(not value or len(value) > 500 for value in values) or len(set(values)) != len(values):
+            raise ValueError("Invalid draft steps")
+        return values
 
     @field_validator("reminder_at")
     @classmethod
@@ -72,8 +80,12 @@ class Interpretation(Strict):
             raise ValueError("Bound answer required")
         if self.change == "reminder" and not self.reminder_at:
             raise ValueError("Reminder required")
+        if self.change == "steps" and not self.draft_steps:
+            raise ValueError("Step plan required")
         if self.change == "title" and not self.title.strip():
             raise ValueError("Title required")
+        if self.change == "edit" and (not self.title.strip() or not self.reminder_at):
+            raise ValueError("Edited title and reminder required")
         if self.change == "plan" and not self.planned_on:
             raise ValueError("Execution date required")
         if self.change == "defer" and not self.return_on:

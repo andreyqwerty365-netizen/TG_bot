@@ -1,6 +1,14 @@
 .env
+**/*.env
+**/*.crmb
+**/*.crme
+**/*.crmx
+**/*.partial
 .venv
 .runtime
 __pycache__
 .pytest_cache
 *.egg-info
+web/node_modules
+web/test-results
+web/playwright-report
