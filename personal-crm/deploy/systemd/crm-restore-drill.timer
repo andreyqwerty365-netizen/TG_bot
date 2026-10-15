@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly independent recovery rehearsal
+
+[Timer]
+OnCalendar=Sun *-*-* 04:20:00 Europe/Moscow
+Persistent=true
+AccuracySec=1min
+Unit=crm-restore-drill.service
+
+[Install]
+WantedBy=timers.target

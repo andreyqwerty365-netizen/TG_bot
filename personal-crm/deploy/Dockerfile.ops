@@ -1,0 +1,9 @@
+# Build only from an inspected local backup image containing PostgreSQL16 clients.
+ARG OPS_BASE
+FROM ${OPS_BASE}
+USER root
+COPY src /opt/crm-ops/src
+RUN chmod -R a+rX /opt/crm-ops
+ENV PYTHONPATH=/opt/crm-ops/src
+USER 10001:10001
+ENTRYPOINT ["python", "-m", "personal_crm.restore_drill"]
