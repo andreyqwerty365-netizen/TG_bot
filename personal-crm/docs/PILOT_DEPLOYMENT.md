@@ -1,10 +1,10 @@
 # Первый запуск на общем VPS
 
-Подготовлен код и пакет размещения. Новый общий renderer/check, Linux images, Caddy HTTPS с локальной CA, сессии/очередь после restart и encrypted isolated restore проверены на Ubuntu в [успешном CI 38707830985](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38707830985), source commit ad0c56e: 326 CRM/133 legacy/14 React/18 E2E/build/load, обе jobs success. Production Python 3.12.15/PostgreSQL 16.15. Настоящие VPS, публичные DNS/ACME, reboot VPS, Telegram, внешнее S3 и перенос Amvera **не выполнены**. Использование начинается после оставшихся шагов ниже; CI не является развёртыванием CRM.
+Код и пакет размещения проверены на Ubuntu в [успешном CI 38707830985](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38707830985), source commit ad0c56e: 326 CRM/133 legacy/14 React/18 E2E/build/load, обе jobs success. Production Python 3.12.15/PostgreSQL 16.15. 15 октября первый настоящий VPS получил сборку `4232585`: миграции, API/source, публичные DNS/ACME, пароль/cookie/CSRF и сохранённая сессия после reboot проверены. Владелец вошёл; разрешённая тестовая задача сохранилась после reload и отмечена выполненной. Оплаченное S3 подключено: ежедневный backup worker включён, фактические encrypted upload/readback/download и изолированный restore прошли. Telegram, независимый uptime monitor, регулярная репетиция restore и перенос Amvera **ещё не выполнены**. Актуальные результаты и подготовка одного старого бота: [VPS_OPERATIONS.md](VPS_OPERATIONS.md). CI не заменяет оставшуюся внешнюю приёмку.
 
 ## Данные от владельца
 
-Нужны выбранный домен, VPS Ubuntu 24.04 с SSH, отдельный новый CRM-бот, подтверждённые Telegram user/chat ID, внешний S3 bucket и credentials. Реальные секреты вводятся в `/etc/personal-crm`, не в GitHub/issue/этот документ. У двух старых ботов нужно отдельно выяснить repository/ref, команду запуска и persistent paths. Пока этого нет, Amvera продолжает работать.
+Домен, VPS Ubuntu 24.04 с SSH и внешний S3 уже предоставлены и настроены. Для следующего этапа нужны отдельный новый CRM-бот и подтверждённые Telegram user/chat ID. Реальные секреты вводятся в `/etc/personal-crm`, не в GitHub/issue/этот документ. Владелец уточнил, что старый бот один; для него требуется выбрать точку восстановления и проверенный исходник. Текущее приложение Amvera было остановлено при осмотре; его состояние не менялось.
 
 ## Сборка и конфигурация
 
@@ -19,7 +19,7 @@
 
 ### Подготовка новых приватных файлов одной командой
 
-После сборки images выполнить на будущем Linux VPS из `personal-crm/` (команды ниже ещё не запускались на настоящем сервере). Вместо `crm.example.org` и `operator@example.org` указать согласованные домен и контакт сертификата. Это только общедоступные параметры; пароль не передаётся аргументом.
+Для нового сервера после сборки images выполнить из `personal-crm/` следующую процедуру. На первом VPS конфигурация уже создана тем же генератором; повторно его не запускать поверх рабочих файлов. Вместо `crm.example.org` и `operator@example.org` указать согласованные домен и контакт сертификата. Это только общедоступные параметры; пароль не передаётся аргументом.
 
     crm_runtime_image=$(docker image inspect personal-crm:pilot-COMMIT --format '{{.Id}}')
     crm_backup_image=$(docker image inspect personal-crm-backup:pilot-COMMIT --format '{{.Id}}')
