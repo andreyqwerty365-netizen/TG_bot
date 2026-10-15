@@ -38,6 +38,8 @@ const messages:Record<string,string> = {
   ambiguous_or_invalid_time:'Проверьте дату и время. При переводе часов выберите однозначное время.',
   profile_timezone_required:'Сначала задайте часовой пояс в настройках.', invalid_timezone:'Укажите существующий часовой пояс, например Europe/Moscow.',
   source_revision_conflict:'Этот запрос уже сохранён с другими значениями. Обновите форму.',
+  server_unavailable:'Сервер временно недоступен. Повторите попытку; результат сохранения пока неизвестен.',
+  response_unreadable:'Ответ сервера не удалось прочитать. Повторите попытку; результат сохранения пока неизвестен.',
   ai_disabled:'Разбор с помощью ИИ выключен. Исходное сообщение сохранено.',
   ai_previous_attempt:'Результат предыдущего платного запроса неопределён. Автоматический повтор остановлен.',
   ai_rate_limit:'Провайдер ограничил запросы. Назначен ограниченный повтор.',
@@ -57,9 +59,17 @@ function requester(authHeaders:Record<string,string>,expired?:()=>void) {
     let response:Response;
     try { response = await fetch(path,{method,signal,credentials:'same-origin',headers:{...authHeaders,...(body ? {'Content-Type':'application/json'} : {})},...(body ? {body:JSON.stringify(body)} : {})}); }
     catch(error) { if ((error as Error).name === 'AbortError') throw error; throw new Error('Нет связи с сервером. Проверьте подключение; результат сохранения пока неизвестен.'); }
-    const data = await response.json();
     if(response.status===401)expired?.();
-    if (!response.ok) throw new ApiError(response.status, typeof data.detail === 'string' ? data.detail : 'invalid_input');
+    let data:unknown;
+    try {data=await response.json();}
+    catch(error) {
+      if((error as Error).name==='AbortError')throw error;
+      throw new ApiError(response.status,response.status===401?'unauthorized':response.status>=500?'server_unavailable':'response_unreadable');
+    }
+    if (!response.ok) {
+      const detail=data&&typeof data==='object'&&'detail' in data?data.detail:undefined;
+      throw new ApiError(response.status,typeof detail==='string'?detail:response.status>=500?'server_unavailable':'invalid_input');
+    }
     return data as T;
   };
 }

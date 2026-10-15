@@ -11,12 +11,12 @@ import { OperationsPanel } from './operations';
 export type ScreenProps={api:Api;preferences:Preferences;projects:Project[];revision:number;open:(id:string)=>void;changed:(message:string)=>void};
 
 export function Today(props:ScreenProps) {
-  const load=useLoad<Overview>(props.api,'/overview',props.revision);const view=load.data;
-  if(load.error)return <Notice error>{load.error}</Notice>;
-  if(load.loading)return <p className="loading">Собираем актуальный обзор…</p>;
-  if(!view)return null;
+  const [retry,setRetry]=useState(0);
+  const load=useLoad<Overview>(props.api,'/overview',props.revision+retry);const view=load.data;
   return <div className="today-layout"><div className="today-main">
     <QuickCapture api={props.api} changed={props.changed} open={props.open}/>
+    {load.error?<Notice error>{load.error}<button onClick={()=>setRetry(v=>v+1)}>Повторить загрузку обзора</button></Notice>:
+    load.loading?<p className="loading">Собираем актуальный обзор…</p>:view?<>
     {view.sync_errors?.map(item=><Notice error key={item.code}>{item.message}</Notice>)}
     {view.proposals.length?<section className="panel"><span className="eyebrow">Ваше решение</span><h2>На подтверждение: {view.proposals.length}</h2><p>Предложения ещё не изменили ваши дела.</p><a href="#inbox">Открыть входящие →</a></section>:null}
     <section className="panel focus-panel"><header className="section-heading"><div><span className="eyebrow">Сначала главное</span><h2>До трёх дел в фокусе</h2></div><span className="count">{view.main.length}</span></header>
@@ -27,11 +27,11 @@ export function Today(props:ScreenProps) {
     {view.guidance.length?<section className="panel"><h2>Разобраться с препятствием</h2>{view.guidance.map(g=><p className="guidance" key={g.id}>{g.message}</p>)}</section>:null}
     <section className="panel"><header className="section-heading"><div><span className="eyebrow">Без спешки</span><h2>Вернуться к забытым делам</h2></div></header>
       {view.forgotten.length?<TaskRows tasks={view.forgotten} zone={props.preferences.timezone} open={props.open}/>:<Empty title="Ничего не потерялось">Дела без срока будут возвращаться сюда по мере необходимости.</Empty>}
-    </section></div>
-    <aside className="today-side"><section className="panel"><header className="section-heading"><h2>Сроки и просрочки</h2><span className="count">{view.deadlines.length}</span></header>
+    </section></>:null}</div>
+    {!load.loading&&!load.error&&view?<aside className="today-side"><section className="panel"><header className="section-heading"><h2>Сроки и просрочки</h2><span className="count">{view.deadlines.length}</span></header>
       {view.deadlines.length?<TaskRows tasks={view.deadlines} zone={props.preferences.timezone} open={props.open}/>:<Empty title="Сроков пока нет">Дедлайн можно добавить отдельно от плана выполнения.</Empty>}
     </section><section className="panel"><h2>Ожидаете ответ</h2>{view.waiting.length?<TaskRows tasks={view.waiting} zone={props.preferences.timezone} open={props.open}/>:<p className="muted">Нет открытых ожиданий.</p>}</section>
-    <div className="quiet-note"><span aria-hidden="true">↳</span><p>Обзор помогает выбрать следующий шаг. Решения о сроках и выполнении остаются за вами.</p></div></aside></div>;
+    <div className="quiet-note"><span aria-hidden="true">↳</span><p>Обзор помогает выбрать следующий шаг. Решения о сроках и выполнении остаются за вами.</p></div></aside>:null}</div>;
 }
 
 export function AllTasks(props:ScreenProps & {initialProject?:string}) {

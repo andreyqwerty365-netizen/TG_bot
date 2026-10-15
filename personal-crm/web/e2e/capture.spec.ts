@@ -17,6 +17,10 @@ test('saved session survives reload and quick capture resolves a short answer',a
   await page.getByLabel('Ответ на вопрос').fill('в 19:00');
   await page.getByRole('button',{name:'Ответить',exact:true}).click();
   await expect(page.getByRole('status').first()).toContainText('Дело сохранено');
+  await expect(page.getByText('Собираем актуальный обзор…',{exact:true})).not.toBeVisible();
+  await page.locator('.capture-panel').getByRole('button',{name:`проверить ${title}`,exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'Карточка дела'})).toBeVisible();
+  await page.getByRole('button',{name:'Закрыть окно',exact:true}).click();
   await page.getByRole('link',{name:'Все дела',exact:true}).click();
   await page.getByLabel('Найти дело').fill(title);
   await expect(page.getByRole('button',{name:`проверить ${title}`,exact:true})).toBeVisible();
@@ -32,4 +36,47 @@ test('saved session survives reload and quick capture resolves a short answer',a
   await expect(page.getByLabel('Пароль')).toBeVisible();
   await page.reload();
   await expect(page.getByLabel('Пароль')).toBeVisible();
+});
+
+test('draft survives an overview outage and a successful retry',async({page})=>{
+  await page.goto('./');
+  await page.getByLabel('Пароль').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
+  await page.getByRole('button',{name:'Войти',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'До трёх дел в фокусе'})).toBeVisible();
+  const input=page.getByLabel('Быстро записать дело');
+  await input.fill('Несохранённая учебная мысль');
+  await page.route('**/overview',route=>route.fulfill({status:502,contentType:'text/html',body:'<html>synthetic gateway diagnostic</html>'}),{times:1});
+  await page.getByRole('button',{name:'Обновить данные',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Повторить загрузку обзора'})).toBeVisible();
+  await expect(input).toHaveValue('Несохранённая учебная мысль');
+  await expect(page.getByRole('alert')).not.toContainText('synthetic gateway diagnostic');
+  await page.getByRole('button',{name:'Повторить загрузку обзора'}).click();
+  await expect(page.getByRole('heading',{name:'До трёх дел в фокусе'})).toBeVisible();
+  await expect(input).toHaveValue('Несохранённая учебная мысль');
+});
+
+test('a committed capture with a lost response retries without creating a second task',async({page},info)=>{
+  await page.goto('./');
+  await page.getByLabel('Пароль').fill(process.env.CRM_WEB_TEST_TOKEN || 'synthetic-web-local');
+  await page.getByRole('button',{name:'Войти',exact:true}).click();
+  const title=`учебный повтор ${info.project.name} ${Date.now()}`;
+  const input=page.getByLabel('Быстро записать дело');
+  const text=`Завтра в 19:00 напомни проверить ${title}`;
+  await input.fill(text);
+  await page.route('**/workspace/capture',async route=>{
+    const response=await route.fetch();
+    expect(response.ok()).toBe(true);
+    expect((await response.json()).result.status).toBe('created');
+    await route.fulfill({status:502,contentType:'text/html',body:'<html>synthetic lost response</html>'});
+  },{times:1});
+  await input.press('Enter');
+  await expect(page.getByRole('alert')).toContainText('результат сохранения пока неизвестен');
+  await expect(input).toHaveValue(text);
+  await input.press('Enter');
+  await expect(input).toHaveValue('');
+  await expect(page.locator('.capture-panel').getByRole('button',{name:`проверить ${title}`,exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'Все дела',exact:true}).click();
+  await page.getByLabel('Найти дело').fill(title);
+  await expect(page.locator('.task-row')).toHaveCount(1);
+  await expect(page.locator('.task-row')).toContainText(title);
 });
