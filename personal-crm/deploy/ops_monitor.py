@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 LABELS={'https':'HTTPS CRM','containers':'процессы CRM и бота','source':'обработка сообщений',
+        'delivery':'доставка напоминаний Telegram',
         'crm_backup':'копия PostgreSQL','legacy_backup':'копии SQLite бота','restore':'проверка восстановления',
         'disk':'свободное место','backup_timer':'таймер копий бота'}
 CONTAINERS=('personal-crm-pilot-api-1','personal-crm-pilot-source-1','personal-crm-pilot-db-1',
@@ -133,12 +134,26 @@ def collect(config,now):
             if not value or value[0]!='true' or len(value)>1 and value[1]!='healthy':return False
         return True
     check('containers',containers)
+    database={}
     try:
-        query="SELECT json_build_object('source_seen',(SELECT max(last_seen_at) FROM worker_status WHERE role='source'),'source_state',(SELECT state FROM worker_status WHERE role='source' ORDER BY last_seen_at DESC LIMIT 1),'backup_at',(SELECT max(last_success_at) FROM worker_status WHERE role='backup'),'backup_state',(SELECT state FROM worker_status WHERE role='backup' ORDER BY last_seen_at DESC LIMIT 1))"
+        query="""SELECT json_build_object(
+            'source_seen',(SELECT max(last_seen_at) FROM worker_status WHERE role='source'),
+            'source_state',(SELECT state FROM worker_status WHERE role='source' ORDER BY last_seen_at DESC LIMIT 1),
+            'backup_at',(SELECT max(last_success_at) FROM worker_status WHERE role='backup'),
+            'backup_state',(SELECT state FROM worker_status WHERE role='backup' ORDER BY last_seen_at DESC LIMIT 1),
+            'delivery_seen',(SELECT max(last_seen_at) FROM worker_status WHERE role='delivery'),
+            'delivery_state',(SELECT state FROM worker_status WHERE role='delivery' ORDER BY last_seen_at DESC LIMIT 1),
+            'delivery_blocked',(SELECT count(*) FROM jobs WHERE status IN ('failed','unknown')))"""
         database=json.loads(command(['/usr/bin/docker','exec','personal-crm-pilot-db-1','psql','-X','-U','crm','-d','personal_crm','-Atc',query]))
         checks['source']=is_recent(database.get('source_seen'),now,180) and database.get('source_state') in ('idle','running')
         checks['crm_backup']=is_recent(database.get('backup_at'),now,26*3600) and database.get('backup_state') in ('idle','running')
     except Exception:checks.update(source=False,crm_backup=False)
+    if config.get('delivery_required'):
+        def delivery():
+            running=command(['/usr/bin/docker','inspect','--format','{{.State.Running}}','personal-crm-pilot-delivery-1'])=='true'
+            return (running and is_recent(database.get('delivery_seen'),now,180)
+                    and database.get('delivery_state') in ('idle','running') and database.get('delivery_blocked')==0)
+        check('delivery',delivery)
     def legacy_backup():
         report=load_json(config['legacy_backup_report'])
         return report.get('status')=='verified_remote' and is_recent(report.get('created_at'),now,26*3600)

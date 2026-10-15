@@ -95,3 +95,25 @@ def test_cronitor_heartbeat_uses_its_fixed_origin_and_failure_protocol(monkeypat
     monkeypatch.setattr(m,'request',lambda host,path:sent.append((host,path)))
     m.ping(value);m.ping(value,failed=True)
     assert sent==[('cronitor.link','/p/'+('a'*32)+'/crm-ops-heartbeat'),('cronitor.link','/p/'+('a'*32)+'/crm-ops-heartbeat?state=fail')]
+
+
+@pytest.mark.parametrize('running,age,state,blocked,expected',[(True,0,'running',0,True),(False,0,'running',0,False),(True,181,'running',0,False),(True,0,'error',0,False),(True,0,'running',1,False)])
+def test_enabled_delivery_requires_running_container_and_fresh_worker(monkeypatch,tmp_path,running,age,state,blocked,expected):
+    from datetime import timedelta
+    m=module();now=datetime(2026,10,15,12,tzinfo=UTC)
+    monkeypatch.setattr(m,'request',lambda *args,**kwargs:b'{"status":"ready"}')
+    def command(args):
+        if 'psql' in args:
+            return json.dumps({'delivery_seen':(now-timedelta(seconds=age)).isoformat(),'delivery_state':state,'delivery_blocked':blocked})
+        if args[-1]=='personal-crm-pilot-delivery-1':return 'true' if running else 'false'
+        return 'true healthy'
+    monkeypatch.setattr(m,'command',command)
+    config={'crm_origin':'https://example.invalid','legacy_backup_report':str(tmp_path/'missing'),'restore_report':str(tmp_path/'missing'),'delivery_required':True}
+    assert m.collect(config,now).get('delivery') is expected
+
+
+def test_disabled_delivery_does_not_raise_alert(monkeypatch,tmp_path):
+    m=module();monkeypatch.setattr(m,'request',lambda *args,**kwargs:b'{"status":"ready"}')
+    monkeypatch.setattr(m,'command',lambda *args:'true healthy')
+    config={'crm_origin':'https://example.invalid','legacy_backup_report':str(tmp_path/'missing'),'restore_report':str(tmp_path/'missing')}
+    assert 'delivery' not in m.collect(config,datetime(2026,10,15,12,tzinfo=UTC))

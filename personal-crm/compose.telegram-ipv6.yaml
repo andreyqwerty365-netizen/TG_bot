@@ -1,0 +1,12 @@
+# Optional outbound-only Telegram route. Never attach to the legacy bot network.
+# Compose >=2.33.1: IPv4 stays available only on the private database network.
+services:
+  delivery:
+    networks: !override [data, telegram-outbound]
+networks:
+  telegram-outbound:
+    enable_ipv4: false
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: ${CRM_TELEGRAM_IPV6_SUBNET:-fd73:6372:6d74::/64}
