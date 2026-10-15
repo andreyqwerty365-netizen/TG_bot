@@ -1,6 +1,6 @@
 # Первый запуск на общем VPS
 
-Подготовлен код и пакет размещения. Настоящие VPS, DNS, сертификат, Telegram, S3 и перенос Amvera **не выполнены**. Linux image/reboot ещё требуют проверки на отдельном сервере: в текущем Windows окружении Docker отсутствует. Использование production начинается после пунктов ниже, а не после push в GitHub.
+Подготовлен код и пакет размещения. Linux images, Caddy HTTPS с локальной CA, сессии/очередь после restart и encrypted isolated restore проверены на Ubuntu в [успешном CI 38704316507](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507), source commit 91ba0df. Production Python 3.12.15/PostgreSQL 16.15. Настоящие VPS, публичные DNS/ACME, reboot VPS, Telegram, внешнее S3 и перенос Amvera **не выполнены**. Использование начинается после оставшихся шагов ниже; CI не является развёртыванием CRM.
 
 ## Данные от владельца
 

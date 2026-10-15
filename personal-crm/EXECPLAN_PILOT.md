@@ -13,7 +13,7 @@
 - [x] (2026-10-15) Подготовлены переносимый browser runner и создание трёх новых isolated CI databases; локально 294 CRM tests/133 legacy/14 React/build и 18 E2E через новый runner прошли. Подготовлены synthetic Docker/HTTPS/restart/restore rehearsal и Linux workflow. Владелец явно разрешил единственное исключение из scope: `.github/workflows/personal-crm.yml`. Действующие боты/Amvera не меняются.
 - [x] (2026-10-15) Workflow опубликован в 311fc77. Первый actual Ubuntu run 38702871815: validation job прошла — 294 CRM/133 legacy/14 React/18 E2E/build/10k load. Контейнерная job собрала images, но выявила конфликт статического Caddy IP с динамическим API allocation; весь run не считается успешным.
 - [x] (2026-10-15) Повторный run 38703604939 на 8aad53a полностью зелёный: 296 CRM/133 legacy/14 React/18 E2E/load и production image/HTTPS/CSRF/session restart/encrypted restore. Caddy allocation исправлен, метка OS показывает Linux.
-- [ ] (2026-10-15) Перед запуском дополнительно проверить production security patch images Python 3.12.15/PostgreSQL 16.15; версии подтверждены первичными release источниками. Обновляются только patch releases внутри прежних major/minor, реальные базы/серверы не затрагиваются.
+- [x] (2026-10-15) Финальный run 38704316507 на 91ba0df полностью зелёный с production Python 3.12.15/PostgreSQL 16.15: 296 CRM/133 legacy/14 React/18 E2E/load, image build, HTTPS/CSRF/session/queue restart/encrypted restore. Зафиксированы actual runtime/PG client/Caddy versions и local image IDs. Реальные базы/серверы не затронуты.
 
 - [x] (2026-10-14) Проверено чистое дерево, текущая версия `4ae92fd`, фактическая матрица приёмки и конфигурация старого Amvera-приложения.
 - [x] (2026-10-14) Владелец выбрал веб + Telegram, сохранение входа по паролю, новые задачи с последующим переносом, новый домен, Москва/09:00, общий бюджет инфраструктуры до 2 000 ₽/месяц.
@@ -21,7 +21,7 @@
 - [x] (2026-10-14) Этап 1: Argon2id/opaque sessions/CSRF/persistent rate limits, быстрый source-first ввод/уточнение, production без fake delivery. Итоговый полный прогон 279 CRM passed, 133 legacy passed, 14 React unit/build; desktop/mobile cookie/capture/status сценарии включены в 18 E2E.
 - [x] (2026-10-14) Подготовительная часть этапа 2: durable worker status/readiness, encrypted S3 workflow/readback/download/retention/isolated restore, production Docker/Compose/Caddy шаблоны, приватные env templates, user/deployment инструкции, init owner Москва/09:00 без перезаписи настроек.
 - [x] (2026-10-14) Локальная нагрузка: 10 000 задач/10 параллельных клиентов, по 100 search/today/create; p95 0.1493/0.1815/0.2005s. После пересоздания API 10 100 задач и pending job сохранены. Windows ASGI/PostgreSQL, без HTTP/TLS: не доказательство ресурсов VPS.
-- [ ] Остаток этапа 2 на предоставленном Linux: image build/digest, Docker/Caddy/reboot, actual S3 credentials/upload/download/rehearsal, независимый uptime monitor и месячный restore. В текущем Windows Docker отсутствует; выполнена только syntax/config validation шаблона.
+- [ ] Остаток этапа 2 на предоставленном VPS: public DNS/ACME, reboot, actual S3 credentials/upload/download/rehearsal, независимый uptime monitor и месячный restore. Linux CI не заменяет эти реальные внешние проверки.
 - [ ] Этап 3: согласованные VPS/домен, новая рабочая база, отдельный CRM-бот и первый личный пилот.
 - [ ] Этап 4: перенос двух действующих приложений с Amvera по одному после инвентаризации и репетиции.
 - [ ] Этап 5: сверка и импорт разрешённой старой копии в CRM, без автоматического включения старых уведомлений.
@@ -30,11 +30,11 @@
 
 ## Context and Orientation
 
-CRM уже реализована на FastAPI/SQLAlchemy/PostgreSQL и React/TypeScript. Есть задачи, заметки, ожидания, поиск, проекты, подтверждения, повторения, шаги, история, постоянная очередь и экспорт. Последняя фактическая проверка: 241 CRM, 133 legacy, 11 React unit, 16 desktop/mobile E2E. Это синтетические испытания, не доказательство работы настоящих Telegram/почты/ИИ или Linux production.
+CRM реализована на FastAPI/SQLAlchemy/PostgreSQL и React/TypeScript: задачи, заметки, ожидания, поиск, проекты, подтверждения, повторения, шаги, история, постоянная очередь и экспорт. Последний Linux CI: 296 CRM, 133 legacy, 14 React, 18 desktop/mobile E2E и load; production Docker images/HTTPS/restart/encrypted restore тоже проверены. Это изолированные синтетические испытания, а не работа настоящих Telegram/почты/ИИ или развёрнутый пользовательский VPS.
 
-`personal-crm/src/personal_crm/api.py` проверяет owner Bearer credential; `web/src/App.tsx` хранит его только в памяти вкладки, поэтому после перезагрузки нужен новый вход. `/ready` пока возвращает статическое `adapters=fake`, не проверяет свежесть фоновых обработчиков. Worker при выключенном Telegram использует FakeTransport; production не должен с его помощью отмечать настоящие отправки успешными. Source worker и доставка — разные процессы, работающие с общей PostgreSQL. Mail выключен и до отдельного разрешения не включается.
+`web_auth.py` обеспечивает вход по паролю и серверные cookie sessions с CSRF; reload сохраняет вход, Bearer оставлен техническим клиентам. `/ready` проверяет схему/hold/обязательные workers и возраст копии. Production worker при выключенном Telegram выходит без claim и FakeTransport. Source и доставка — разные процессы над общей PostgreSQL. Mail и платный ИИ выключены до отдельного решения.
 
-`personal-crm/compose.yaml` содержит изолированные API, источник, очередь и PostgreSQL. Dockerfile использует предварительно подготовленные offline wheels и собранный web/dist; Linux-сборка ещё требует проверки. Существующий корневой Dockerfile запускает `main.py`, старый бот использует polling и SQLite `/data/notes.db`, тренировки `/data/workouts.sqlite3`. Конфигурация репозитория показывает способ запуска, но не текущее содержимое Amvera и не соответствие двух приложений репозиториям. Это соответствие нужно получить из кабинета, не угадывать по названиям GitHub.
+Development `compose.yaml`/Dockerfile остаются отдельными. Production Dockerfile.production сам собирает React и Linux dependencies, compose.production.yaml задаёт private PG/API, source/delivery/backup и Caddy. Переносимые проверки и isolated compose.ci.yaml описаны в docs/CLOUD_CHECKS.md; единственный разрешённый корневой CI — .github/workflows/personal-crm.yml. Старый корневой Dockerfile/бот/polling/SQLite и тренировки не менялись. Способ запуска в Git не доказывает содержимое Amvera или соответствие двух приложений репозиториям; это нужно получить из кабинета.
 
 VPS — отдельная виртуальная машина с общими процессором, памятью и диском. Docker Compose запускает проекты в отдельных контейнерах — изолированных окружениях с собственными настройками и хранилищами. HTTPS proxy принимает внешний веб-трафик и направляет его нужному приложению. S3 — отдельное объектное хранилище для файлов копий вне VPS.
 
@@ -145,6 +145,8 @@ VPS — отдельная виртуальная машина с общими �
 
 ## Outcomes & Retrospective
 
+Результат продолжения 2026-10-15: подготовка к первому VPS испытанию проверена actual Linux CI без домашнего компьютера. Source commit 91ba0df и run https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507: обе jobs success. В финальных images actual Python 3.12.15, PostgreSQL server/client 16.15, Caddy 2.11.7; HTTPS local CA, CSRF/secure sessions, restart persistence, encrypted dump/isolated restore подтверждены. CI images существуют на временном runner и не опубликованы в registry; на VPS их нужно собрать из проверенного source commit и записать собственные IDs. Оставшиеся действия требуют VPS/DNS/нового Telegram/S3, после чего идут реальные проверки и пользовательский пилот. Нет оснований объявлять этапы 3–6 завершёнными.
+
 Выполнение 2026-10-14: подготовительные этапы 1/2 реализованы. Миграции разделены: db71ea6c903f добавляет sessions/throttles, ec82f6d410aa отдельно worker_status. Test_web обновлён обычным additive upgrade head, **без downgrade**. Restore поддерживает старые ca294b816edf/db71 архивы с атомарным добавлением недостающих таблиц; восстановленные сессии отозваны, операционная готовность сброшена. Прогон 279 CRM passed (123.61s), 133 legacy (6.16s), 14 React unit/build; core/Stage2/mail demos и 28-day simulation прошли, real_external_calls=0. S3 проверен с synthetic store и botocore Stubber, включая настоящий pg_dump и isolated PostgreSQL restore; реального bucket нет.
 
 Нагрузочный прогон обнаружил полную materialization 10 000 задач в обзоре под owner lock. PostgreSQL теперь считает backlog и выбирает только нужных кандидатов, сохраняя все сроки/ожидания, ranking и число остальных. Regression test проверяет загрузку двух Task вместо 501 для undated backlog. После измеренного исправления локальные p95 укладываются в цели; Linux/VPS нагрузка ещё не измерена. Сквозной demo дополнительно обнаружил heartbeat, ошибочно записанный в конфигурационного owner вместо явного --owner; исправлен и проверен отдельным subprocess regression.
@@ -154,6 +156,8 @@ VPS — отдельная виртуальная машина с общими �
 Пакет размещения и инструкции — docs/PILOT_DEPLOYMENT.md и docs/USER_GUIDE.md. Секреты/базы/logs не публикуются, изменения только personal-crm на существующей ветке от b2ffab5. VPS/домен/боты не созданы/не переключены, платежи отсутствуют; production legacy import сохраняет прежний rehearsal guard. Следующий необходимый вход — конкретные VPS/DNS/новый бот/S3 credentials от владельца, затем фактические Linux и внешние проверки. Этапы 3–6 не объявлены завершёнными.
 
 ## Artifacts and Notes
+
+Обновление завершения 2026-10-15: зафиксирован полностью успешный Linux CI на актуальных patch images, исправлены production IP allocation и подпись OS в нагрузочном отчёте, сохранены переносимые проверки и инструкция. Последующий коммит обновляет только документацию; runtime/config/workflow остаются ровно как в проверенном 91ba0df.
 
 Обновление 2026-10-15: начато воспроизведение сохранённого cloud handoff с текущей ветки a4666d1. Локальные Linux tools отсутствуют; добавляется явно разрешённый отдельный CI и переносимые проверки, без установки WSL или изменения Amvera.
 

@@ -1,5 +1,7 @@
 # Personal CRM — дела, веб-интерфейс и сопровождение
 
+Проверено на Ubuntu: [Linux CI 38704316507](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507), source commit 91ba0df — 296 CRM/133 legacy/14 React/18 E2E, load и production Docker/HTTPS/restart/encrypted restore. Production Python 3.12.15/PostgreSQL 16.15. [Проверки без компьютера](docs/CLOUD_CHECKS.md). Реальный VPS/внешние аккаунты ещё не подключены.
+
 Подготовка первого личного запуска: сохранённый вход по паролю, быстрый ввод с уточнением, operational статус и opt-in encrypted S3 publication. [Размещение на VPS](docs/PILOT_DEPLOYMENT.md), [первые пять действий](docs/USER_GUIDE.md). Текущие проверки и ограничения — [ACCEPTANCE.md](docs/ACCEPTANCE.md); следующие шаги — [EXECPLAN_PILOT.md](EXECPLAN_PILOT.md). Реальная инфраструктура и аккаунты ещё не подключены.
 
 Резервирование и перенос: [RECOVERY.md](docs/RECOVERY.md). Добавлены AES-256-GCM PostgreSQL копии, ежедневный opt-in цикл/30-дневное хранение, восстановление только в пустую isolated базу с блокировкой отправок, внешний журнал удаления профилей, readonly rehearsal импорта SQLite и экспорт из настроек веба. Внешний носитель и production-перенос не настроены; реальный ящик по-прежнему отключён.

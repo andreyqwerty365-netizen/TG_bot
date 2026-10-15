@@ -1,5 +1,20 @@
 # Приёмка Personal CRM
 
+## Итоговый Linux CI на production patch images, 15 октября 2026
+
+[Run 38704316507](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38704316507), source commit **91ba0dfcc460ad35bd09c66baae222ade1bd615f**: **обе jobs success**. Ubuntu 24.04.5, Python 3.12.15, Node 24.21.0, PostgreSQL server/client 16.15. **296 CRM passed (55.85s), 133 legacy (3.31s), 14 React, 18 desktop/mobile E2E (32.8s)**; TypeScript/build/pip check, migrations и реальное восстановление прошли. Одно прежнее предупреждение Starlette/AnyIO, без assertion failures.
+
+10 000 synthetic tasks/10 clients: p95 search **0.1669s**, today **0.3191s**, create **0.2671s**; 10 100 задач и pending job пережили пересоздание API. Это Linux ASGI/PostgreSQL load без HTTP/TLS и без измерения вместимости конкретного VPS.
+
+Контейнерная job подтвердила actual runtime Python **3.12.15**, PostgreSQL server **16.15**, backup client **16.15**, Caddy **2.11.7**, production frontend, private PG/API, HTTPS с local CA и проверкой сертификата, Secure/HttpOnly cookie, Origin/CSRF, отключённую delivery без fake claim, session/task/queue persistence после restart DB/API/source/Caddy, encrypted pg_dump и отдельный restore с hold/revocation/inactive reminders. Все созданные контейнеры/volumes удалены собственным project cleanup.
+
+| Target | Local image content ID из этого run |
+|---|---|
+| runtime | `sha256:5b2eb5fedc4f477c32b59fe6cdd79a37a436ffbec0f15286b7298f882c1a8a4c` |
+| backup | `sha256:51badf28c27a6147e62d99c67957300adf0e44eeee0ec7fe68a559d66725989b` |
+
+Это идентификаторы построенных CI images, не registry-published artifacts. Для VPS собрать проверенный commit и сохранить IDs его actual build. Пакет готов к первому согласованному VPS испытанию. **Не выполнены:** public DNS/ACME, reboot VPS, настоящий внешний S3/его rehearsal, независимый monitor, реальный Telegram, перенос Amvera и production legacy import. Реальные почта/ИИ выключены. Финальная фиксация результатов меняет только документацию; код/config/workflow остаются на проверенном source commit.
+
 ## Переносимые проверки и подготовка Linux CI, 15 октября 2026
 
 Повтор после исправления IP: [38703604939](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38703604939), commit 8aad53a, **обе jobs success**. Linux: **296 CRM (58.49s), 133 legacy (3.55s), 14 React, 18 E2E (28.8s)**, build/pip check, 10 000 задач/10 клиентов p95 0.1442/0.2330/0.2237s. Отчёт теперь правильно фиксирует Linux и фактический PostgreSQL server 16.10/client 16.15.
