@@ -3,6 +3,7 @@ import argparse
 import json
 import math
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -23,6 +24,10 @@ OWNER='synthetic-load-owner'
 TOKEN='synthetic-load-token'
 
 
+def conditions():
+    return f'{platform.system()} local PostgreSQL, in-process ASGI; excludes HTTP/TLS and VPS capacity'
+
+
 def guard(url):
     value=make_url(url)
     if value.drivername!='postgresql+psycopg' or not re.fullmatch(r'personal_crm_test_load_[a-z0-9_]+',value.database or ''):
@@ -32,6 +37,7 @@ def guard(url):
 def run(url):
     guard(url);factory=sessions(url)
     with factory() as s:
+        server_version=s.scalar(text('SHOW server_version'))
         if s.scalar(text("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")):
             raise ValueError('dedicated_empty_load_database_required')
     subprocess.run([sys.executable,'-m','alembic','upgrade','head'],check=True,
@@ -77,7 +83,7 @@ def run(url):
     stats={key:{'requests':len(values),'p95_seconds':round(sorted(values)[math.ceil(len(values)*.95)-1],4),
                 'max_seconds':round(max(values),4)} for key,values in timings.items()}
     return {'status':'measured','seed_tasks':count,'clients':10,'measurements':stats,'restart':'persisted_without_delivery',
-            'conditions':'Windows local PostgreSQL 16, in-process ASGI; excludes HTTP/TLS and Linux/VPS capacity',
+            'conditions':conditions(),'postgresql_version':server_version,
             'targets_met':all(stats[key]['p95_seconds']<limit for key,limit in [('search',1),('today',1),('create',2)])}
 
 

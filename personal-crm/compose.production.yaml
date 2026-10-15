@@ -127,7 +127,7 @@ networks:
   outbound: {}
   proxy:
     ipam:
-      config: [{subnet: 172.30.71.0/28}]
+      config: [{subnet: 172.30.71.0/28, ip_range: 172.30.71.8/29}]
 volumes:
   postgres: {}
   caddy-data: {}

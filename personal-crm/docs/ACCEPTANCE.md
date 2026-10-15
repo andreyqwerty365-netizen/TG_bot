@@ -2,6 +2,10 @@
 
 ## Переносимые проверки и подготовка Linux CI, 15 октября 2026
 
+Первый фактический Linux run: [38702871815](https://github.com/andreyqwerty365-netizen/TG_bot/actions/runs/38702871815), commit 311fc77. Validation job **success**: Ubuntu 24.04.5, Python 3.12.15, Node 24.21.0, PostgreSQL server 16.10/client 16.15; **294 CRM (56.20s), 133 legacy (3.19s), 14 React, 18 E2E (28.3s)**, build и load прошли. Linux load p95 search/today/create 0.1450/0.2590/0.2221s; старое поле conditions ошибочно называло Windows и исправлено отдельным regression. Среда Linux подтверждена runner metadata, а не этим старым текстом.
+
+Контейнерная job **failure**: runtime/backup images построены, migrations/init owner/init ledger выполнены, при старте Caddy обнаружен конфликт IP allocation. Исправлен production dynamic ip_range, статический Caddy IP исключён из него; доверенный proxy адрес не расширен. Повтор контейнерной проверки ещё ожидается; первый run целиком не зелёный. Локально новые два regression и предыдущие guard tests: **17 passed**. Новая локальная load проверка после metadata fix также прошла, PostgreSQL 16.10, p95 0.1327/0.2057/0.2182s; это отдельное Windows измерение.
+
 На новом изолированном PostgreSQL наборе: **294 CRM passed, 130.55s**, **133 legacy passed, 7.21s**, **14 React unit passed**, TypeScript/build и pip check прошли. Новый `scripts/browser_checks.py` сам применил миграции, запустил собственные API/source на свободном loopback port и остановил их после **18 desktop/mobile E2E passed, 30.7s**. Старые локальные browser процессы не использовались. Из предупреждений: прежний Starlette/AnyIO и локальная Windows cache-directory permission warning; assertion failures отсутствуют.
 
 15 новых guard/environment tests проверяют запрет рабочей/удалённой БД, разделение трёх database names, очистку унаследованных integration credentials, ограничение Docker cleanup своим project/runtime и запрет удалённого daemon. Workflow YAML/permissions/triggers и private PG/API ports проверены статически. Владелец явно разрешил один `.github/workflows/personal-crm.yml` вне модуля; workflow не развёртывает и не использует рабочие secrets.

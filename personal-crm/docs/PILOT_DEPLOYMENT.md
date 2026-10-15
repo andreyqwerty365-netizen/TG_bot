@@ -69,6 +69,8 @@ Amvera переносить отдельно по `EXECPLAN_PILOT.md`: один 
 
 ## Обновление
 
+Проверки без домашнего компьютера доступны отдельным workflow и переносимыми скриптами: [CLOUD_CHECKS.md](CLOUD_CHECKS.md). Динамический pool proxy сети ограничен 172.30.71.8/29 внутри subnet 172.30.71.0/28: Caddy 172.30.71.2 не должен автоматически назначаться API. При смене subnet нужно согласованно менять static IP, dynamic pool и доверенный адрес Uvicorn.
+
 Сохранить verified remote backup и два текущих image digests. Проверить новую версию на отдельной БД, совместимость схемы и restore. Остановить доставку на время согласованного обновления, выполнить миграцию однократно, сменить image IDs и запустить процессы; проверить readiness и данные. Откат image допустим только при подтверждённой совместимости схемы. При её отсутствии — согласованное восстановление/переключение; не downgrade рабочую БД автоматически. Новые записи после переключения учитывать при откате. GitHub не связан с автоматическим непроверенным production deploy.
 
 Основания конфигурации: [Compose services](https://docs.docker.com/reference/compose-file/services/), [raw env_file](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/), [Caddy reverse_proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), [PostgreSQL client repository](https://www.postgresql.org/download/linux/debian/).
